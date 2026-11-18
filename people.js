@@ -2,23 +2,27 @@
 //
 // The model only understands descriptions, not names or photos. So when a prompt mentions one of
 // these names, the name is swapped for the description before the model sees it:
-//   "Haim running"  ->  "a bearded man with short dark hair and a gray scarf running"
+//   "Haim running"  ->  "a bearded man with curly dark hair in a purple t-shirt running"
 //
-// Keep each description short (about ten words). The model reads only the first 22 words or so
-// of a prompt, and at 16 x 16 pixels only hair, beard, glasses and clothing colour can show.
+// Every description here was tried on the real model first (see sheet.html), because this small
+// model mixes colours up easily: "a dark beard and white t-shirt" came out as a white beard.
+// What works: one colour word per thing, hair and beard first, clothing last. Everyone wears a
+// purple t-shirt, the Harmony colour; a logo cannot fit on a shirt six pixels wide.
+// Keep descriptions to about a dozen words: the model reads only the first 22 or so words of a
+// prompt, and whatever the person is doing comes after the description.
 // This file is public, like the rest of the site: only add people who are fine with that.
 //
 // "Or" and "Ran" are also everyday English words ("a cat or a dog", "a dog that ran"), so those
 // two have capital: true and only count as names when written with a capital letter.
 
 export const PEOPLE = [
-  { name: "Haim", looks: "a bearded man with short dark hair and a gray scarf" },
-  { name: "Nir", looks: "a smiling man with brown hair, glasses and a blue shirt" },
-  { name: "Tal", looks: "a man with ginger hair, a ginger beard and a dark jacket" },
-  { name: "Alon", looks: "a man with a dark quiff, short beard and black suit" },
-  { name: "Ran", looks: "a man with short dark hair, a dark beard and white t-shirt", capital: true },
-  { name: "Or", looks: "a woman with dark hair tied back, earrings and a white t-shirt", capital: true },
-  { name: "Dudu", looks: "a bald man with glasses, a short beard and a gray coat" },
+  { name: "Haim", looks: "a bearded man with curly dark hair in a purple t-shirt" },
+  { name: "Nir", looks: "a man with brown hair and glasses in a purple t-shirt" },
+  { name: "Tal", looks: "a man with ginger hair and a ginger beard in a purple t-shirt" },
+  { name: "Alon", looks: "a man with a dark quiff and stubble in a purple t-shirt" },
+  { name: "Ran", looks: "a bearded man with short dark hair in a purple shirt and tie", capital: true },
+  { name: "Or", looks: "a woman with dark hair tied back and earrings in a purple t-shirt", capital: true },
+  { name: "Dudu", looks: "a bald man with glasses and a short beard in a purple t-shirt" },
 ];
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

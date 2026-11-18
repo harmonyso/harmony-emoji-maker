@@ -274,9 +274,9 @@ test("a known name is swapped for that person's description, and the emoji keeps
   await makeOne(page, "haim running");
   await waitStatus(page, "Painted. Tap another one to switch.");
   const calls = await page.evaluate(() => globalThis.__stub.generates);
-  assert.equal(calls[0].prompt, "a bearded man with short dark hair and a gray scarf running", "what the model is asked for");
+  assert.equal(calls[0].prompt, "a bearded man with curly dark hair in a purple t-shirt running", "what the model is asked for");
   assert.equal(await page.locator("#name").innerText(), ":haim-running:");
-  assert.equal(await page.locator("#people-note").innerText(), "Haim is painted as a bearded man with short dark hair and a gray scarf.");
+  assert.equal(await page.locator("#people-note").innerText(), "Haim is painted as a bearded man with curly dark hair in a purple t-shirt.");
   const [download] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
   assert.equal(download.suggestedFilename(), "haim-running.png");
 
@@ -315,7 +315,7 @@ test("names match as whole words only, in any case, and odd names are safe", asy
       line: (await import("./people.js")).describePeople(),
       shown: document.querySelector("#known").textContent,
       notNir: [expandPeople("nirvana").text, expandPeople("a souvenir").text],
-      everyone: PEOPLE.map((p) => ({ name: p.name, words: p.looks.split(/\s+/).length })),
+      everyone: PEOPLE.map((p) => ({ name: p.name, looks: p.looks, words: p.looks.split(/\s+/).length })),
       upper: expandPeople("HAIM dancing").text,
       twice: expandPeople("haim and Haim").text,
       inside: [expandPeople("Chaim running").text, expandPeople("haimish").text, expandPeople("haim2").text],
@@ -328,21 +328,22 @@ test("names match as whole words only, in any case, and odd names are safe", asy
     };
   });
   assert.equal(r.plain, r.looks);
-  assert.ok(r.words <= 12, `the description is short enough to leave room for the rest of the prompt (${r.words} words)`);
-  assert.equal(r.nir, "a smiling man with brown hair, glasses and a blue shirt dancing");
+  assert.ok(r.words <= 13, `the description is short enough to leave room for the rest of the prompt (${r.words} words)`);
+  assert.equal(r.nir, "a man with brown hair and glasses in a purple t-shirt dancing");
   assert.deepEqual(r.names, ["Haim", "Nir", "Tal", "Alon", "Ran", "Or", "Dudu"]);
   // Or and Ran are English words too: only the capitalised form is the person.
   assert.deepEqual(r.words2, ["a cat or a dog", "a dog that ran away", "OR gate", "an orange"], "ordinary words are left alone");
-  assert.equal(r.or, "a woman with dark hair tied back, earrings and a white t-shirt drinking coffee");
-  assert.equal(r.ran, "happy a man with short dark hair, a dark beard and white t-shirt");
-  assert.equal(r.dudu, "a bald man with glasses, a short beard and a gray coat waving");
-  assert.equal(r.tal, "a man with ginger hair, a ginger beard and a dark jacket");
-  assert.equal(r.alon, "a man with a dark quiff, short beard and black suit");
+  assert.equal(r.or, "a woman with dark hair tied back and earrings in a purple t-shirt drinking coffee");
+  assert.equal(r.ran, "happy a bearded man with short dark hair in a purple shirt and tie");
+  assert.equal(r.dudu, "a bald man with glasses and a short beard in a purple t-shirt waving");
+  assert.equal(r.tal, "a man with ginger hair and a ginger beard in a purple t-shirt");
+  assert.equal(r.alon, "a man with a dark quiff and stubble in a purple t-shirt");
   assert.equal(r.line, "It knows these people by name: Haim, Nir, Tal, Alon, Ran, Or, Dudu. Write Ran and Or with a capital letter.");
   assert.equal(r.shown, r.line, "the page lists who it knows");
   assert.deepEqual(r.notNir, ["nirvana", "a souvenir"]);
-  for (const p of r.everyone) assert.ok(p.words <= 12, `${p.name}: ${p.words} words`);
+  for (const p of r.everyone) assert.ok(p.words <= 13, `${p.name}: ${p.words} words`);
   assert.equal(new Set(r.everyone.map((p) => p.name.toLowerCase())).size, r.everyone.length, "no name is listed twice");
+  for (const p of r.everyone) assert.match(p.looks, /in a purple (t-shirt|shirt and tie)$/, `${p.name} wears the Harmony colour`);
   assert.equal(r.upper, `${r.looks} dancing`);
   assert.equal(r.twice, `${r.looks} and ${r.looks}`);
   assert.deepEqual(r.inside, ["Chaim running", "haimish", "haim2"], "no match inside another word");
@@ -508,7 +509,7 @@ test("the sheet page paints four emoji for each prompt it is given", async () =>
   assert.deepEqual(await page.locator(".sheet-label").allInnerTexts(), ["Haim waving", "a rocket"]);
   const calls = await page.evaluate(() => globalThis.__stub.generates);
   assert.deepEqual(calls.map((c) => [c.prompt, c.n, c.seed]), [
-    ["a bearded man with short dark hair and a gray scarf waving", 4, 3],
+    ["a bearded man with curly dark hair in a purple t-shirt waving", 4, 3],
     ["a rocket", 4, 3],
   ]);
   const painted = await page.evaluate(() =>
