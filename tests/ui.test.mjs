@@ -305,6 +305,15 @@ test("names match as whole words only, in any case, and odd names are safe", asy
       words: looks.split(/\s+/).length,
       plain: expandPeople("Haim").text,
       nir: expandPeople("nir dancing").text,
+      names: PEOPLE.map((p) => p.name),
+      words2: ["a cat or a dog", "a dog that ran away", "OR gate", "an orange"].map((t) => expandPeople(t).text),
+      or: expandPeople("Or drinking coffee").text,
+      ran: expandPeople("happy Ran").text,
+      dudu: expandPeople("DUDU waving").text,
+      tal: expandPeople("tal").text,
+      alon: expandPeople("alon").text,
+      line: (await import("./people.js")).describePeople(),
+      shown: document.querySelector("#known").textContent,
       notNir: [expandPeople("nirvana").text, expandPeople("a souvenir").text],
       everyone: PEOPLE.map((p) => ({ name: p.name, words: p.looks.split(/\s+/).length })),
       upper: expandPeople("HAIM dancing").text,
@@ -321,6 +330,16 @@ test("names match as whole words only, in any case, and odd names are safe", asy
   assert.equal(r.plain, r.looks);
   assert.ok(r.words <= 12, `the description is short enough to leave room for the rest of the prompt (${r.words} words)`);
   assert.equal(r.nir, "a smiling man with brown hair, glasses and a blue shirt dancing");
+  assert.deepEqual(r.names, ["Haim", "Nir", "Tal", "Alon", "Ran", "Or", "Dudu"]);
+  // Or and Ran are English words too: only the capitalised form is the person.
+  assert.deepEqual(r.words2, ["a cat or a dog", "a dog that ran away", "OR gate", "an orange"], "ordinary words are left alone");
+  assert.equal(r.or, "a woman with dark hair tied back, earrings and a white t-shirt drinking coffee");
+  assert.equal(r.ran, "happy a man with short dark hair, a dark beard and white t-shirt");
+  assert.equal(r.dudu, "a bald man with glasses, a short beard and a gray coat waving");
+  assert.equal(r.tal, "a man with ginger hair, a ginger beard and a dark jacket");
+  assert.equal(r.alon, "a man with a dark quiff, short beard and black suit");
+  assert.equal(r.line, "It knows these people by name: Haim, Nir, Tal, Alon, Ran, Or, Dudu. Write Ran and Or with a capital letter.");
+  assert.equal(r.shown, r.line, "the page lists who it knows");
   assert.deepEqual(r.notNir, ["nirvana", "a souvenir"]);
   for (const p of r.everyone) assert.ok(p.words <= 12, `${p.name}: ${p.words} words`);
   assert.equal(new Set(r.everyone.map((p) => p.name.toLowerCase())).size, r.everyone.length, "no name is listed twice");

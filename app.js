@@ -2,7 +2,7 @@
 // The model, sampler and downloads live in ./lib (fetched at build time, see README for credits).
 
 import { loadEngine, crashedLastTime, GRID, N } from "./lib/client.js";
-import { expandPeople } from "./people.js";
+import { expandPeople, describePeople } from "./people.js";
 
 const EXPORT_SIZE = 128; // Slack's recommended emoji size
 const STEPS = 16;
@@ -58,6 +58,7 @@ for (let i = 0; i < COUNT; i++) {
   tiles.push({ button, canvas, ctx: canvas.getContext("2d") });
 }
 els.tiles.dataset.count = String(COUNT);
+$("known").textContent = describePeople();
 els.make.textContent = `Make ${COUNT}`;
 
 function setStatus(text, kind = "info") {
