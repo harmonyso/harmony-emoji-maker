@@ -69,6 +69,14 @@ test("opens clean: title, four empty tiles, nothing downloaded yet", async () =>
   assert.equal(await page.locator("#progress").isHidden(), true);
   assert.equal(await page.evaluate(() => globalThis.__stub), undefined, "the model must not load before the person asks");
   for (const t of await readTiles(page)) assert.equal(t.painted, 0);
+  // The page credits the model; the full credits are one link away.
+  const credits = await page.locator(".credits").innerText();
+  assert.match(credits, /Tessera-small by Jagrat Patel/);
+  assert.doesNotMatch(credits, /Caleb|Slack Moji/i);
+  assert.equal(
+    await page.locator('.credits a:has-text("Credits and license")').getAttribute("href"),
+    "https://github.com/harmonyso/harmony-emoji-maker#credits-and-license",
+  );
   assert.deepEqual(problems, []);
 });
 

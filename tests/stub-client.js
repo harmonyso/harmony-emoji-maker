@@ -1,5 +1,5 @@
 // Stand-in for lib/client.js in the UI tests. It has the same exports and the same call
-// shapes as the real one (slack-moji @ 8e8aecc), but paints made-up sprites instantly, so the
+// shapes as the real one (see README), but paints made-up sprites instantly, so the
 // page can be tested without the 115 MB model. The real model is tested in model.test.mjs.
 
 export const GRID = 16;

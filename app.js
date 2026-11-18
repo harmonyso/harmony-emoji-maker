@@ -1,5 +1,5 @@
 // Harmony emoji maker: the page around the model.
-// The model, sampler and downloads live in ./lib (from cfahlgren1/slack-moji, see README).
+// The model, sampler and downloads live in ./lib (fetched at build time, see README for credits).
 
 import { loadEngine, crashedLastTime, GRID, N } from "./lib/client.js";
 
