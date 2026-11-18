@@ -6,6 +6,13 @@ download it as a 128 × 128 PNG, ready to add to Slack.
 Nothing runs on a server. The model is downloaded once (about 115 MB) and runs on the visitor's own
 device: on the graphics card through WebGPU where the browser has it, otherwise on the processor.
 
+## What it does
+
+- Paints four options for a prompt; you pick one and download a 128 × 128 PNG or copy it.
+- Knows a few people by name (`people.js`): "Tal waving" is rewritten into a description the model can follow.
+- Makes the picked emoji move (`motion.js`): Walk, Bounce, Shake or Spin, downloaded as a looping GIF (`gif.js`).
+  The model only paints stills, so the motion is the finished picture moved pixel by pixel.
+
 ## Credits and license
 
 - The model is [Tessera-small](https://huggingface.co/thejagstudio/tessera-small) by Jagrat Patel
@@ -51,6 +58,7 @@ Pictures from the test runs are saved in `tests/out/` and attached to each workf
 
 ## Handy links
 
+- `sheet.html` paints several prompts side by side, for comparing wordings. See the top of `people.js`.
 - `?cpu` runs on the processor even when a graphics card is available.
 - `?seed=123` paints the same emoji again for the same prompt.
 - `?n=1` paints one emoji instead of four.

@@ -70,10 +70,20 @@ async function paint(prompt, seed, file) {
   const device = await page.locator("#device").innerText();
   const [download] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
   await download.saveAs(path.join(out, file));
+  // The moving version of the same emoji: a real GIF, the right size, small enough for Slack.
+  const [gif] = await Promise.all([page.waitForEvent("download"), page.click("#download-gif")]);
+  const gifFile = path.join(out, file.replace(".png", ".gif"));
+  await gif.saveAs(gifFile);
+  const g = fs.readFileSync(gifFile);
+  assert.equal(g.subarray(0, 6).toString("latin1"), "GIF89a");
+  assert.equal(g.readUInt16LE(6), 120);
+  assert.equal(g.readUInt16LE(8), 120);
+  assert.ok(g.length > 500 && g.length < 128 * 1024, `GIF is ${g.length} bytes`);
+  const moving = await page.locator('.move[aria-pressed="true"] span').innerText();
   await page.screenshot({ path: path.join(out, file.replace(".png", "-page.png")), fullPage: true });
   await context.close();
   const seconds = Math.round((Date.now() - started) / 1000);
-  console.log(`      "${prompt}" seed ${seed}: ${seconds}s, ${stats.painted} px painted, ${stats.colours} colours, ${stats.red} red, ${stats.green} green`);
+  console.log(`      "${prompt}" seed ${seed}: ${seconds}s, ${stats.painted} px painted, ${stats.colours} colours, ${stats.red} red, ${stats.green} green; GIF ${g.length} bytes (${moving})`);
   return { ...stats, device, problems, seconds };
 }
 

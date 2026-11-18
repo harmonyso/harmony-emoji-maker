@@ -57,6 +57,7 @@ body {
 .card,
 .primary,
 .quiet,
+.move,
 .ask input,
 .ideas button,
 .tile,
@@ -412,6 +413,63 @@ body {
   flex-wrap: wrap;
   gap: 0.6rem;
   margin-top: 1.25rem;
+}
+
+.motion {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 3px solid var(--check);
+}
+
+.motion-title {
+  margin: 0 0 0.6rem;
+  font-weight: 700;
+}
+
+.moves {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 5.5rem));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+/* Same idea as the tiles: the frame colour shows which style is picked. */
+.move {
+  --step: 4px;
+  display: block;
+  width: 100%;
+  padding: 4px 4px 2px;
+  border: 0;
+  background: var(--check);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+}
+
+.move:focus-visible {
+  background: var(--violet);
+  color: #fff;
+}
+
+.move[aria-pressed="true"] {
+  background: var(--ink);
+  color: #fff;
+}
+
+.move canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+  background: var(--tray);
+}
+
+.move span {
+  display: block;
+  padding: 0.15rem 0;
 }
 
 .credits {

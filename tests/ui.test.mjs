@@ -543,6 +543,254 @@ test("the keyboard alone can pick and download", async () => {
   assert.equal(download.suggestedFilename(), "a-rocket.png");
 });
 
+/** Decode a GIF in the page with the browser's own decoder. Returns frames as RGBA arrays. */
+const DECODE_GIF = `async (b64) => {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const dec = new ImageDecoder({ data: bytes, type: "image/gif" });
+  await dec.tracks.ready;
+  await dec.completed;
+  const track = dec.tracks.selectedTrack;
+  const frames = [];
+  let w = 0, h = 0;
+  for (let i = 0; i < track.frameCount; i++) {
+    const { image } = await dec.decode({ frameIndex: i });
+    w = image.displayWidth; h = image.displayHeight;
+    const c = new OffscreenCanvas(w, h);
+    const ctx = c.getContext("2d");
+    ctx.drawImage(image, 0, 0);
+    frames.push({ ms: image.duration / 1000, px: ctx.getImageData(0, 0, w, h).data });
+    image.close();
+  }
+  return { w, h, loops: track.repetitionCount, frames };
+}`;
+
+test("after painting there are four motion styles, and the prompt picks one", async () => {
+  const { page } = await open();
+  assert.equal(await page.locator("#motion").isHidden(), true);
+  await makeOne(page, "dudu walking");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  assert.equal(await page.locator("#motion").isVisible(), true);
+  assert.deepEqual(await page.locator(".move span").allInnerTexts(), ["Walk", "Bounce", "Shake", "Spin"]);
+  const chosen = () => page.locator(".move").evaluateAll((els) => els.filter((e) => e.getAttribute("aria-pressed") === "true").map((e) => e.dataset.effect));
+  assert.deepEqual(await chosen(), ["walk"], "walking picks Walk");
+  await page.click('.move[data-effect="spin"]');
+  assert.deepEqual(await chosen(), ["spin"]);
+  for (const [prompt, want] of [["a rocket", "bounce"], ["Tal jumping", "bounce"], ["an angry cat", "shake"], ["a spinning coin", "spin"], ["Or running", "walk"]]) {
+    await makeOne(page, prompt);
+    await waitStatus(page, "Painted. Tap another one to switch.");
+    assert.deepEqual(await chosen(), [want], prompt);
+  }
+  // While it is painting again, the motion block is out of the way.
+  await page.fill("#prompt", "a rocket");
+  await page.click("#make");
+  assert.equal(await page.locator("#motion").isHidden(), true);
+  await waitStatus(page, "Painted. Tap another one to switch.");
+});
+
+test("each motion style moves the picture the way its name says", async () => {
+  const { page } = await open();
+  await makeOne(page, "a rocket");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  const r = await page.evaluate(async () => {
+    const { EFFECTS, FRAME, PAD, framesOf, still } = await import("./motion.js");
+    const src = document.querySelector(".tile canvas").getContext("2d").getImageData(0, 0, 16, 16).data;
+    const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+    // The picture, untouched, in the middle of a 20 x 20 frame: built here by hand.
+    const padded = new Uint8ClampedArray(FRAME * FRAME * 4);
+    for (let y = 0; y < 16; y++) padded.set(src.subarray(y * 64, y * 64 + 64), ((y + PAD) * FRAME + PAD) * 4);
+    // Where the picture sits: how many pixels are painted, and their average row and column.
+    const centre = (px) => {
+      let n = 0, sx = 0, sy = 0;
+      for (let i = 0; i < FRAME * FRAME; i++) if (px[i * 4 + 3]) { n++; sx += i % FRAME; sy += Math.floor(i / FRAME); }
+      return { n, x: sx / n, y: sy / n };
+    };
+    const mirror = (px) => {
+      const out = new Uint8ClampedArray(px.length);
+      for (let y = 0; y < FRAME; y++) for (let x = 0; x < FRAME; x++) out.set(px.subarray((y * FRAME + FRAME - 1 - x) * 4, (y * FRAME + FRAME - x) * 4), (y * FRAME + x) * 4);
+      return out;
+    };
+    const out = { frame: FRAME, pad: PAD, stillIsPadded: same(still(src), padded), base: centre(padded) };
+    for (const e of EFFECTS) {
+      const f = framesOf(e, src);
+      out[e.id] = {
+        count: f.length,
+        delay: e.delayMs,
+        firstIsPicture: same(f[0], padded),
+        nothingCutOff: f.map((x) => centre(x).n),
+        centres: f.map(centre),
+        distinct: new Set(f.map((x) => x.join())).size,
+        onlyPictureColours: f.every((x) => { const ok = new Set(); for (let i = 0; i < 256; i++) ok.add(src.subarray(i * 4, i * 4 + 4).join()); ok.add("0,0,0,0"); for (let i = 0; i < FRAME * FRAME; i++) if (!ok.has(x.subarray(i * 4, i * 4 + 4).join())) return false; return true; }),
+      };
+    }
+    const spin = framesOf(EFFECTS.find((e) => e.id === "spin"), src);
+    out.spinHalfway = same(spin[6], mirror(padded));
+    out.spinEdgeOn = centre(spin[3]).n;
+    return out;
+  });
+  assert.equal(r.frame, 20);
+  assert.equal(r.pad, 2);
+  assert.ok(r.stillIsPadded, "a still frame is the picture with two empty pixels all round");
+  for (const id of ["walk", "bounce", "shake", "spin"]) assert.ok(r[id].onlyPictureColours, `${id} invents no colours`);
+  // Walk and Shake only slide the picture, so no painted pixel may fall off the edge of a frame.
+  for (const id of ["walk", "shake"]) assert.ok(r[id].nothingCutOff.every((n) => n === r.base.n), `${id} never cuts the picture off (${r[id].nothingCutOff} of ${r.base.n})`);
+  assert.ok(r.bounce.nothingCutOff.slice(1).every((n) => n === r.base.n), "Bounce keeps the whole picture once it leaves the ground");
+  // Walk: stand, step, stand, step. A step lifts the body one pixel.
+  assert.equal(r.walk.count, 4);
+  assert.ok(r.walk.firstIsPicture);
+  assert.equal(r.walk.distinct, 3, "standing, a left step and a right step");
+  assert.ok(Math.abs(r.walk.centres[1].y - (r.base.y - 1)) < 1e-9 && Math.abs(r.walk.centres[3].y - (r.base.y - 1)) < 1e-9, "a step lifts the body exactly one pixel");
+  assert.ok(r.walk.centres[1].x < r.walk.centres[3].x, "the head leans one way, then the other");
+  // Bounce: squash, up two pixels, hang, and back.
+  assert.equal(r.bounce.count, 6);
+  const heights = r.bounce.centres.map((c) => Math.round((r.base.y - c.y) * 100) / 100);
+  assert.deepEqual(heights.slice(1), [1, 2, 2, 1, 0], "rises, hangs, falls");
+  assert.ok(r.bounce.nothingCutOff[0] < r.base.n && heights[0] < 0, "the first frame is squashed down");
+  // Shake: small jitters around where it started.
+  assert.equal(r.shake.count, 6);
+  assert.ok(r.shake.firstIsPicture === false && r.shake.centres.every((c) => Math.abs(c.x - r.base.x) < 1.5 && Math.abs(c.y - r.base.y) < 1.5));
+  assert.ok(r.shake.distinct >= 4);
+  // Spin: a full turn, mirrored at the halfway point, a sliver when edge-on.
+  assert.equal(r.spin.count, 12);
+  assert.ok(r.spin.firstIsPicture);
+  assert.ok(r.spinHalfway, "halfway round it is the mirror image");
+  assert.ok(r.spinEdgeOn > 0 && r.spinEdgeOn <= 32, "edge-on it is two pixels wide");
+});
+
+test("Download GIF gives a looping 120 px GIF that matches the picked emoji and style, frame by frame", async () => {
+  const { page } = await open();
+  await makeOne(page, "Dudu walking");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  await page.locator(".tile").nth(1).click();
+  for (const id of ["walk", "bounce", "shake", "spin"]) {
+    await page.click(`.move[data-effect="${id}"]`);
+    const [download] = await Promise.all([page.waitForEvent("download"), page.click("#download-gif")]);
+    assert.equal(download.suggestedFilename(), `dudu-walking-${id}.gif`);
+    const file = path.join(out, `downloaded-${id}.gif`);
+    await download.saveAs(file);
+    const bytes = fs.readFileSync(file);
+    assert.equal(bytes.subarray(0, 6).toString("latin1"), "GIF89a");
+    assert.equal(bytes.readUInt16LE(6), 120);
+    assert.equal(bytes.readUInt16LE(8), 120);
+    assert.equal(bytes[bytes.length - 1], 0x3b, "ends with the GIF trailer");
+    assert.ok(bytes.includes(Buffer.from("NETSCAPE2.0")), "has the loop marker");
+    assert.ok(bytes.length < 128 * 1024, `under Slack's 128 KB limit (${bytes.length} bytes)`);
+    const cmp = await page.evaluate(
+      async ([b64, effectId, decodeSrc]) => {
+        const decoded = await eval(decodeSrc)(b64);
+        const { effectById, framesOf } = await import("./motion.js");
+        const effect = effectById(effectId);
+        const src = document.querySelectorAll(".tile canvas")[1].getContext("2d").getImageData(0, 0, 16, 16).data;
+        const want = framesOf(effect, src);
+        let wrong = 0;
+        decoded.frames.forEach((f, n) => {
+          for (let y = 0; y < 120; y++)
+            for (let x = 0; x < 120; x++) {
+              const g = (y * 120 + x) * 4;
+              const s = (Math.floor(y / 6) * 20 + Math.floor(x / 6)) * 4;
+              const w = want[n];
+              if (w[s + 3] === 0 ? f.px[g + 3] !== 0 : f.px[g] !== w[s] || f.px[g + 1] !== w[s + 1] || f.px[g + 2] !== w[s + 2] || f.px[g + 3] !== 255) wrong++;
+            }
+        });
+        return { w: decoded.w, h: decoded.h, loops: decoded.loops, n: decoded.frames.length, want: want.length, ms: decoded.frames.map((f) => f.ms), delay: effect.delayMs, wrong };
+      },
+      [bytes.toString("base64"), id, DECODE_GIF],
+    );
+    assert.equal(cmp.w, 120);
+    assert.equal(cmp.h, 120);
+    assert.equal(cmp.n, cmp.want, `${id}: every frame is in the file`);
+    assert.equal(cmp.loops, Infinity, `${id}: loops forever`);
+    assert.ok(cmp.ms.every((ms) => ms === cmp.delay), `${id}: frame time ${cmp.ms[0]} ms, wanted ${cmp.delay}`);
+    assert.equal(cmp.wrong, 0, `${id}: every pixel of every frame matches`);
+    assert.equal(await status(page), `Downloaded dudu-walking-${id}.gif`);
+  }
+});
+
+test("the GIF writer survives the hard cases: a full palette, noise that fills its table, too many colours", async () => {
+  const { page } = await open();
+  const r = await page.evaluate(async (decodeSrc) => {
+    const { encodeGif } = await import("./gif.js");
+    const decode = eval(decodeSrc);
+    const b64 = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
+    let seed = 12345;
+    const rand = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+    const colour = (i) => [(i * 37) % 256, (i * 91 + 17) % 256, (i * 151 + 3) % 256];
+    // 128 x 128 of pure noise in `n` colours plus see-through: far more patterns than the 4096-entry table holds.
+    const noise = (n) => { const px = new Uint8ClampedArray(128 * 128 * 4); for (let i = 0; i < 128 * 128; i++) { const k = Math.floor(rand() * (n + 1)); if (k < n) px.set([...colour(k), 255], i * 4); } return px; };
+    const exact = async (frames) => {
+      const d = await decode(b64(encodeGif(frames, { grid: 128, scale: 1, delayMs: 100 })));
+      let wrong = 0;
+      frames.forEach((px, n) => { for (let i = 0; i < px.length; i += 4) { const f = d.frames[n].px; if (px[i + 3] === 0 ? f[i + 3] !== 0 : f[i] !== px[i] || f[i + 1] !== px[i + 1] || f[i + 2] !== px[i + 2] || f[i + 3] !== 255) wrong++; } });
+      return { n: d.frames.length, wrong };
+    };
+    const full = await exact([noise(255), noise(255)]);
+    const two = await exact([noise(2)]);
+    const one = await exact([new Uint8ClampedArray(128 * 128 * 4).fill(255)]);
+    const empty = await exact([new Uint8ClampedArray(128 * 128 * 4)]);
+    // 400 colours cannot fit: it must still decode, with every pixel close to what was asked for.
+    const many = noise(400);
+    const d = await decode(b64(encodeGif([many], { grid: 128, scale: 1, delayMs: 100 })));
+    let worst = 0, lostAlpha = 0;
+    for (let i = 0; i < many.length; i += 4) {
+      const f = d.frames[0].px;
+      if ((many[i + 3] === 0) !== (f[i + 3] === 0)) lostAlpha++;
+      else if (many[i + 3]) worst = Math.max(worst, Math.abs(f[i] - many[i]) + Math.abs(f[i + 1] - many[i + 1]) + Math.abs(f[i + 2] - many[i + 2]));
+    }
+    return { full, two, one, empty, many: { frames: d.frames.length, worst, lostAlpha } };
+  }, DECODE_GIF);
+  assert.deepEqual(r.full, { n: 2, wrong: 0 }, "255 colours of noise, two frames");
+  assert.deepEqual(r.two, { n: 1, wrong: 0 }, "two colours of noise");
+  assert.deepEqual(r.one, { n: 1, wrong: 0 }, "one flat colour");
+  assert.deepEqual(r.empty, { n: 1, wrong: 0 }, "nothing but see-through");
+  assert.equal(r.many.frames, 1);
+  assert.equal(r.many.lostAlpha, 0);
+  assert.ok(r.many.worst < 200, `too many colours fall back to a near one (worst miss ${r.many.worst})`);
+});
+
+test("the motion previews move, follow the picked emoji, and hold still for people who asked for less motion", async () => {
+  const { page } = await open();
+  await makeOne(page, "a rocket");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  const snap = () => page.evaluate(() => [...document.querySelectorAll(".move canvas")].map((c) => Array.from(c.getContext("2d").getImageData(0, 0, 20, 20).data).join()));
+  const seen = [new Set(), new Set(), new Set(), new Set()];
+  for (let i = 0; i < 12; i++) {
+    (await snap()).forEach((s, k) => seen[k].add(s));
+    await page.waitForTimeout(60);
+  }
+  for (const [k, s] of seen.entries()) assert.ok(s.size >= 2, `preview ${k} shows more than one frame (${s.size})`);
+  // Picking another emoji changes what is being animated.
+  const before = await page.evaluate(async () => {
+    const { EFFECTS, framesOf } = await import("./motion.js");
+    return framesOf(EFFECTS[0], document.querySelectorAll(".tile canvas")[0].getContext("2d").getImageData(0, 0, 16, 16).data)[0].join();
+  });
+  await page.locator(".tile").nth(3).click();
+  const walkFrames = await page.evaluate(async () => {
+    const { EFFECTS, framesOf } = await import("./motion.js");
+    return framesOf(EFFECTS[0], document.querySelectorAll(".tile canvas")[3].getContext("2d").getImageData(0, 0, 16, 16).data).map((f) => f.join());
+  });
+  assert.ok(!walkFrames.includes(before));
+  const now = new Set();
+  for (let i = 0; i < 8; i++) {
+    now.add((await snap())[0]);
+    await page.waitForTimeout(60);
+  }
+  for (const s of now) assert.ok(walkFrames.includes(s), "the Walk preview shows frames of the newly picked emoji");
+
+  const calm = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 900, height: 900 } });
+  const p2 = await calm.newPage();
+  await p2.route("**/lib/client.js", (route) => route.fulfill({ contentType: "text/javascript", body: stub }));
+  await p2.goto(server.url);
+  await p2.fill("#prompt", "a rocket");
+  await p2.click("#make");
+  await p2.waitForFunction(() => document.querySelector("#status").textContent.includes("Painted."));
+  const still = new Set();
+  for (let i = 0; i < 8; i++) {
+    still.add((await p2.evaluate(() => [...document.querySelectorAll(".move canvas")].map((c) => Array.from(c.getContext("2d").getImageData(0, 0, 20, 20).data).join()).join("|"))));
+    await p2.waitForTimeout(60);
+  }
+  assert.equal(still.size, 1, "with reduced motion the previews do not animate");
+  assert.equal(await p2.locator("#download-gif").isEnabled(), true, "the GIF can still be downloaded");
+});
+
 test("the sheet page paints four emoji for each prompt it is given", async () => {
   const { page, problems } = await open({ query: "sheet.html?p=Haim waving|a rocket&seed=3" });
   await page.waitForFunction(() => document.querySelector("#status").textContent.startsWith("Done"), null, { timeout: 15_000 });
