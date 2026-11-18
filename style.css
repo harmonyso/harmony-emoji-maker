@@ -21,6 +21,8 @@ html {
 }
 
 body {
+  position: relative;
+  min-height: 100vh;
   margin: 0;
   background: var(--ground);
   color: var(--ink);
@@ -33,18 +35,35 @@ body {
   display: none !important;
 }
 
+/* Faded pixel icons scattered behind the whole page. Drawn by backdrop.js. */
+#backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100vh;
+  pointer-events: none;
+}
+
 .page {
-  width: min(100% - 2.5rem, 40rem);
+  width: min(100% - 2rem, 46rem);
   margin: 0 auto;
-  padding: clamp(1.5rem, 6vw, 4rem) 0 3rem;
+  /* The empty bands above and below are where the background icons live on a phone. */
+  padding: 5.5rem 0 7rem;
 }
 
 /* Stepped corners: every box on the page is cut like a sprite, not rounded. */
+.card,
 .primary,
+.quiet,
 .ask input,
 .ideas button,
 .tile,
-.bar {
+.bar,
+.name,
+.avatar,
+.react {
   clip-path: polygon(
     0 var(--step),
     var(--step) var(--step),
@@ -59,6 +78,12 @@ body {
     var(--step) calc(100% - var(--step)),
     0 calc(100% - var(--step))
   );
+}
+
+.card {
+  --step: 8px;
+  background: var(--tray);
+  padding: clamp(1rem, 4vw, 1.5rem);
 }
 
 .masthead h1 {
@@ -77,7 +102,7 @@ body {
 }
 
 .ask {
-  margin-top: 2rem;
+  margin-top: 1.75rem;
 }
 
 .ask label {
@@ -112,16 +137,20 @@ body {
   box-shadow: inset 0 0 0 4px var(--violet);
 }
 
-.primary {
+.primary,
+.quiet {
   flex: 0 0 auto;
   padding: 0.85rem 1.25rem;
   border: 0;
-  background: var(--violet);
-  color: #fff;
   font: inherit;
   font-weight: 800;
   cursor: pointer;
   outline: none;
+}
+
+.primary {
+  background: var(--violet);
+  color: #fff;
 }
 
 .primary:hover {
@@ -132,8 +161,23 @@ body {
   box-shadow: inset 0 0 0 4px var(--sun);
 }
 
-.primary:disabled {
-  background: #a9a3c9;
+.quiet {
+  background: var(--check);
+  color: var(--ink);
+}
+
+.quiet:hover {
+  background: #d3c9f0;
+}
+
+.quiet:focus-visible {
+  box-shadow: inset 0 0 0 4px var(--violet);
+}
+
+.primary:disabled,
+.quiet:disabled {
+  background: #cfcbe0;
+  color: #f7f5fd;
   cursor: not-allowed;
 }
 
@@ -164,15 +208,18 @@ body {
   box-shadow: inset 0 0 0 3px var(--violet);
 }
 
-.hint,
 .note {
   margin: 0.8rem 0 0;
   color: var(--soft-ink);
   font-size: 0.9375rem;
 }
 
-.results {
-  margin-top: 2rem;
+.note:empty {
+  display: none;
+}
+
+.progress {
+  margin-top: 1rem;
 }
 
 .bar {
@@ -192,41 +239,152 @@ body {
 }
 
 .status {
-  min-height: 1.5em;
-  margin: 0.8rem 0;
+  margin: 0.9rem 0 0;
   font-weight: 700;
+}
+
+.status:empty {
+  display: none;
 }
 
 .status[data-kind="error"] {
   color: var(--alarm);
 }
 
-.tiles {
+/* Results: the picked emoji large on one side, the chat preview and the choices on the other. */
+.results {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.9rem;
-}
-
-.tiles[data-count="1"] {
-  grid-template-columns: minmax(0, 14rem);
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: start;
 }
 
 @media (min-width: 44rem) {
-  .tiles:not([data-count="1"]) {
-    grid-template-columns: repeat(4, 1fr);
+  .results {
+    grid-template-columns: 15rem minmax(0, 1fr);
   }
+}
+
+.sprite {
+  image-rendering: pixelated;
+}
+
+.stage {
+  display: grid;
+  justify-items: center;
+  gap: 0.9rem;
+}
+
+#preview {
+  display: block;
+  width: min(100%, 13rem);
+  aspect-ratio: 1;
+  /* One checker square per sprite pixel, showing where the emoji is see-through. */
+  background: conic-gradient(var(--check) 25%, var(--tray) 0 50%, var(--check) 0 75%, var(--tray) 0) 0 0 / 12.5% 12.5%;
+}
+
+/* The emoji's Slack name is code someone will type, so it is set as code. */
+.name {
+  --step: 4px;
+  margin: 0;
+  max-width: 100%;
+  padding: 0.35rem 0.8rem;
+  background: var(--check);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.message {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.avatar {
+  --step: 4px;
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: var(--violet)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect x='2' y='2' width='1' height='2' fill='%23FFC531'/%3E%3Crect x='5' y='2' width='1' height='2' fill='%23FFC531'/%3E%3Crect x='1' y='5' width='1' height='1' fill='%23FFC531'/%3E%3Crect x='2' y='6' width='4' height='1' fill='%23FFC531'/%3E%3Crect x='6' y='5' width='1' height='1' fill='%23FFC531'/%3E%3C/svg%3E")
+    center / cover;
+}
+
+.message-body {
+  min-width: 0;
+}
+
+.message p {
+  margin: 0;
+}
+
+.who {
+  line-height: 1.2;
+}
+
+.who span {
+  color: var(--soft-ink);
+  font-size: 0.8125rem;
+}
+
+.said {
+  margin-top: 0.1rem;
+}
+
+.said .sprite {
+  width: 1.5rem;
+  height: 1.5rem;
+  vertical-align: -0.35rem;
+}
+
+.reacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.45rem !important;
+}
+
+.react {
+  --step: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  background: var(--check);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.react.mine {
+  background: #d9d0ff;
+  color: var(--violet-deep);
+}
+
+.react .sprite {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 5.5rem));
+  gap: 0.6rem;
+  margin-top: 1.25rem;
 }
 
 /* The tile's background is its frame; the frame colour is the tile's state. */
 .tile {
+  --step: 4px;
   display: block;
   width: 100%;
-  padding: 6px;
+  padding: 4px;
   border: 0;
-  background: var(--ink);
+  background: var(--check);
   cursor: pointer;
   outline: none;
-  transition: transform 120ms ease-out, opacity 120ms ease-out;
 }
 
 .tile:disabled {
@@ -238,12 +396,7 @@ body {
 }
 
 .tile[aria-pressed="true"] {
-  background: var(--sun);
-  transform: scale(1.04);
-}
-
-.tiles[data-picked="true"] .tile[aria-pressed="false"] {
-  opacity: 0.55;
+  background: var(--ink);
 }
 
 .tile canvas {
@@ -251,22 +404,18 @@ body {
   width: 100%;
   aspect-ratio: 1;
   image-rendering: pixelated;
-  /* One checker square per sprite pixel, showing where the emoji is see-through. */
-  background: conic-gradient(var(--check) 25%, var(--tray) 0 50%, var(--check) 0 75%, var(--tray) 0) 0 0 / 12.5% 12.5%;
+  background: var(--tray);
 }
 
 .actions {
-  margin-top: 1.4rem;
-}
-
-.actions .note {
-  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
 }
 
 .credits {
-  margin-top: 3.5rem;
-  padding-top: 1.2rem;
-  border-top: 3px solid var(--check);
+  margin-top: 2rem;
   color: var(--soft-ink);
   font-size: 0.875rem;
 }
@@ -278,10 +427,4 @@ body {
 
 .credits a {
   color: var(--violet-deep);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tile {
-    transition: none;
-  }
 }

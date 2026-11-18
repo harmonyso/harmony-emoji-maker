@@ -15,13 +15,14 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <canvas id="backdrop" aria-hidden="true"></canvas>
     <main class="page">
       <header class="masthead">
         <h1>Harmony emoji maker</h1>
         <p class="lede">Describe an emoji. A tiny model paints four of them right here in your browser. Keep the one you like.</p>
       </header>
 
-      <form id="ask" class="ask" novalidate>
+      <form id="ask" class="ask card" novalidate>
         <label for="prompt">What should it be?</label>
         <div class="ask-row">
           <input
@@ -42,26 +43,51 @@
           <button type="button" data-idea="a red heart">a red heart</button>
           <button type="button" data-idea="a rocket">a rocket</button>
           <button type="button" data-idea="a sleepy cat">a sleepy cat</button>
+          <button type="button" data-idea="Haim waving">Haim waving</button>
         </div>
-        <p id="hint" class="hint">Write in English. The first run downloads the model, about 115 MB.</p>
-      </form>
-
-      <section class="results" aria-label="Results">
+        <p id="hint" class="note">Write in English. The first run downloads the model, about 115 MB.</p>
         <div id="progress" class="progress" hidden>
           <div class="bar" role="progressbar" aria-label="Model loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <span id="bar-fill"></span>
           </div>
         </div>
         <p id="status" class="status" role="status" aria-live="polite"></p>
-        <div id="tiles" class="tiles" role="group" aria-label="Emoji options"></div>
-        <div id="actions" class="actions" hidden>
-          <button id="download" class="primary" type="button" disabled>Download for Slack</button>
-          <p class="note">A 128 × 128 PNG with a see-through background.</p>
+        <p id="people-note" class="note"></p>
+      </form>
+
+      <section id="results" class="results" aria-label="Results" hidden>
+        <div class="stage card">
+          <canvas id="preview" class="sprite" width="16" height="16" role="img" aria-label="The picked emoji, large"></canvas>
+          <p id="name" class="name"></p>
         </div>
-        <p id="device" class="note"></p>
+
+        <div class="desk card">
+          <div class="message" role="group" aria-label="How it looks in a chat">
+            <span class="avatar" aria-hidden="true"></span>
+            <div class="message-body">
+              <p class="who"><strong>you</strong> <span>now</span></p>
+              <p class="said">look what I made <canvas id="inline" class="sprite" width="16" height="16" aria-hidden="true"></canvas></p>
+              <p class="reacts" aria-hidden="true">
+                <span class="react mine"><canvas id="react" class="sprite" width="16" height="16"></canvas>3</span>
+                <span class="react">🎉 2</span>
+                <span class="react">🙌 1</span>
+              </p>
+            </div>
+          </div>
+
+          <div id="tiles" class="tiles" role="group" aria-label="Emoji options"></div>
+
+          <div id="actions" class="actions" hidden>
+            <button id="download" class="primary" type="button">Download for Slack</button>
+            <button id="copy" class="quiet" type="button">Copy</button>
+            <button id="again" class="quiet" type="button">Try again</button>
+          </div>
+          <p class="note">Downloads are 128 × 128 PNGs with a see-through background.</p>
+          <p id="device" class="note"></p>
+        </div>
       </section>
 
-      <footer class="credits">
+      <footer class="credits card">
         <p>
           The model is
           <a href="https://huggingface.co/thejagstudio/tessera-small">Tessera-small</a> by Jagrat Patel, trained on
@@ -71,6 +97,7 @@
         <p>Nothing you type leaves your device.</p>
       </footer>
     </main>
+    <script type="module" src="backdrop.js"></script>
     <script type="module" src="app.js"></script>
   </body>
 </html>

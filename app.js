@@ -2,10 +2,11 @@
 // The model, sampler and downloads live in ./lib (fetched at build time, see README for credits).
 
 import { loadEngine, crashedLastTime, GRID, N } from "./lib/client.js";
+import { expandPeople } from "./people.js";
 
 const EXPORT_SIZE = 128; // Slack's recommended emoji size
 const STEPS = 16;
-const MASKED = [0, 0, 0, 0]; // not painted yet: show the tile's checkerboard
+const MASKED = [0, 0, 0, 0]; // not painted yet: leave the pixel empty
 
 const params = new URLSearchParams(location.search);
 const COUNT = Math.min(4, Math.max(1, Number.parseInt(params.get("n") ?? "4", 10) || 4));
@@ -22,16 +23,23 @@ const els = {
   bar: document.querySelector(".bar"),
   fill: $("bar-fill"),
   status: $("status"),
+  peopleNote: $("people-note"),
+  results: $("results"),
+  name: $("name"),
   tiles: $("tiles"),
   actions: $("actions"),
   download: $("download"),
+  copy: $("copy"),
+  again: $("again"),
   device: $("device"),
 };
+// The picked emoji is shown three more times: large, inside the chat line, and as a reaction.
+const mirrors = ["preview", "inline", "react"].map((id) => $(id).getContext("2d"));
 
 let client = null;
 let busy = false;
 let result = null; // { x, prompt, seed } of the sprites on screen
-let picked = -1;
+let picked = 0;
 
 const tiles = [];
 for (let i = 0; i < COUNT; i++) {
@@ -63,21 +71,30 @@ function setBar(fraction) {
   els.bar.setAttribute("aria-valuenow", String(pct));
 }
 
+/** Copy the picked tile onto the large preview, the chat line and the reaction. */
+function mirror() {
+  for (const ctx of mirrors) {
+    ctx.clearRect(0, 0, GRID, GRID);
+    ctx.drawImage(tiles[picked].canvas, 0, 0);
+  }
+}
+
 function pick(i) {
   picked = i;
   tiles.forEach((t, b) => t.button.setAttribute("aria-pressed", String(b === i)));
-  els.tiles.dataset.picked = String(i >= 0);
-  els.download.disabled = i < 0;
+  mirror();
 }
 
 function paint(x, masked) {
   tiles.forEach((t, b) => {
     t.ctx.putImageData(new ImageData(client.toRGBA(x, masked, b, MASKED), GRID, GRID), 0, 0);
   });
+  mirror();
 }
 
 function clearTiles() {
   tiles.forEach((t) => t.ctx.clearRect(0, 0, GRID, GRID));
+  mirror();
 }
 
 function setBusy(on) {
@@ -85,6 +102,7 @@ function setBusy(on) {
   els.make.disabled = on;
   els.prompt.readOnly = on;
   tiles.forEach((t) => (t.button.disabled = on || !result));
+  els.actions.hidden = on || !result;
 }
 
 const megabytes = (bytes) => Math.round(bytes / 1e6);
@@ -111,7 +129,7 @@ function describeDevice(c) {
     "gpu-bad-output": "Your graphics card gave wrong results, so it paints on your processor.",
     forced: "Painting on your processor.",
   };
-  return `${why[c.fallbackReason] ?? "Painting on your processor."} That is slower: one batch can take a few minutes.`;
+  return `${why[c.fallbackReason] ?? "Painting on your processor."} That is slower: one batch can take a minute or more.`;
 }
 
 async function ensureClient() {
@@ -141,16 +159,21 @@ async function make() {
     return;
   }
 
+  // A known name ("Haim") is swapped for that person's description; the model can't read names.
+  const { text, used } = expandPeople(prompt);
+  els.peopleNote.textContent = used.map((p) => `${p.name} is painted as ${p.looks}.`).join(" ");
+
   result = null;
-  pick(-1);
-  els.actions.hidden = true;
   setBusy(true);
   try {
     const c = await ensureClient();
+    pick(0);
     clearTiles();
+    els.name.textContent = `:${slug(prompt)}:`;
+    els.results.hidden = false;
     setStatus(COUNT > 1 ? `Painting ${COUNT} emoji` : "Painting your emoji");
     const seed = FIXED_SEED ?? crypto.getRandomValues(new Uint32Array(1))[0];
-    const x = await c.generate(prompt, {
+    const x = await c.generate(text, {
       n: COUNT,
       seed,
       onStep: (step, tokens, masked) => {
@@ -160,12 +183,11 @@ async function make() {
     });
     paint(x, null);
     result = { x, prompt, seed };
-    els.actions.hidden = false;
-    if (COUNT === 1) pick(0);
-    setStatus(COUNT > 1 ? "Tap the one you like." : "Painted.");
+    setStatus(COUNT > 1 ? "Painted. Tap another one to switch." : "Painted.");
   } catch (err) {
     console.error(err);
     if (client) clearTiles();
+    els.results.hidden = true;
     setStatus(`That didn't work: ${err?.message ?? err}`, "error");
   } finally {
     setBusy(false);
@@ -197,18 +219,22 @@ export function upscale(px, grid, size) {
   return out;
 }
 
-function download() {
-  if (!result || picked < 0) return;
+/** The picked emoji as a 128 px PNG file. */
+function exportPng() {
   const px = client.toRGBA(result.x, null, picked, MASKED);
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = EXPORT_SIZE;
   canvas.getContext("2d").putImageData(new ImageData(upscale(px, GRID, EXPORT_SIZE), EXPORT_SIZE, EXPORT_SIZE), 0, 0);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("no image"))), "image/png"),
+  );
+}
+
+async function download() {
+  if (!result || busy) return;
   const name = `${slug(result.prompt)}.png`;
-  canvas.toBlob((blob) => {
-    if (!blob) {
-      setStatus("Your browser couldn't create the image file.", "error");
-      return;
-    }
+  try {
+    const blob = await exportPng();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = name;
@@ -217,7 +243,30 @@ function download() {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
     setStatus(`Downloaded ${name}`);
-  }, "image/png");
+  } catch {
+    setStatus("Your browser couldn't create the image file.", "error");
+  }
+}
+
+async function copy() {
+  if (!result || busy) return;
+  if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+    setStatus("This browser can't copy pictures. Use Download for Slack instead.", "error");
+    return;
+  }
+  try {
+    // Handing over a promise, not a finished file, is what Safari needs to allow the copy.
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": exportPng() })]);
+    setStatus("Copied. Paste it into a chat or a document.");
+  } catch {
+    setStatus("The browser blocked the copy. Use Download for Slack instead.", "error");
+  }
+}
+
+function again() {
+  if (!result || busy) return;
+  els.prompt.value = result.prompt;
+  make();
 }
 
 els.form.addEventListener("submit", (e) => {
@@ -225,6 +274,8 @@ els.form.addEventListener("submit", (e) => {
   make();
 });
 els.download.addEventListener("click", download);
+els.copy.addEventListener("click", copy);
+els.again.addEventListener("click", again);
 document.querySelectorAll("[data-idea]").forEach((b) =>
   b.addEventListener("click", () => {
     if (busy) return;

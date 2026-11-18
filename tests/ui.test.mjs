@@ -51,6 +51,12 @@ const readTiles = (page) =>
     }),
   );
 
+/** Fingerprint of any 16 x 16 canvas on the page. */
+const printOf = (page, selector) =>
+  page.evaluate((sel) => Array.from(document.querySelector(sel).getContext("2d").getImageData(0, 0, 16, 16).data).join(","), selector);
+
+const pressed = (page) => page.locator(".tile").evaluateAll((els) => els.map((e) => e.getAttribute("aria-pressed")));
+
 async function makeOne(page, prompt) {
   await page.fill("#prompt", prompt);
   await page.click("#make");
@@ -59,14 +65,15 @@ async function makeOne(page, prompt) {
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
 
-test("opens clean: title, four empty tiles, nothing downloaded yet", async () => {
+test("opens clean: title, no results yet, nothing downloaded yet", async () => {
   const { page, problems } = await open();
   assert.equal(await page.title(), "Harmony emoji maker");
   assert.equal(await page.locator("h1").innerText(), "Harmony emoji maker");
   assert.equal(await page.locator(".tile").count(), 4);
   assert.equal(await page.locator("#make").innerText(), "Make 4");
-  assert.equal(await page.locator("#actions").isHidden(), true);
+  assert.equal(await page.locator("#results").isHidden(), true, "no empty result boxes before the first emoji");
   assert.equal(await page.locator("#progress").isHidden(), true);
+  assert.equal(await page.locator("#status").isHidden(), true, "no empty status line");
   assert.equal(await page.evaluate(() => globalThis.__stub), undefined, "the model must not load before the person asks");
   for (const t of await readTiles(page)) assert.equal(t.painted, 0);
   // The page credits the model; the full credits are one link away.
@@ -102,7 +109,7 @@ test("typing a prompt paints four different emoji, with loading progress on the 
     }).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
   });
   await makeOne(page, "  a   happy frog ");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
 
   const seen = await page.evaluate(() => globalThis.__seen);
   assert.ok(seen.barShown, "progress bar was shown while loading");
@@ -125,8 +132,12 @@ test("typing a prompt paints four different emoji, with loading progress on the 
   for (const tile of t) assert.ok(tile.painted > 100 && tile.painted < 256, `painted ${tile.painted} px`);
   assert.equal(new Set(t.map((x) => x.print)).size, 4, "the four emoji differ");
 
+  assert.equal(await page.locator("#results").isVisible(), true);
   assert.equal(await page.locator("#actions").isVisible(), true);
-  assert.equal(await page.locator("#download").isDisabled(), true, "nothing picked yet");
+  assert.deepEqual(await pressed(page), ["true", "false", "false", "false"], "the first one starts out picked");
+  assert.equal(await page.locator("#name").innerText(), ":a-happy-frog:");
+  for (const id of ["#preview", "#inline", "#react"]) assert.equal(await printOf(page, id), t[0].print, `${id} shows the picked emoji`);
+  for (const id of ["#download", "#copy", "#again"]) assert.equal(await page.locator(id).isEnabled(), true, id);
   assert.match(await page.locator("#device").innerText(), /graphics card/);
   assert.equal(await page.locator("#make").isEnabled(), true);
   assert.deepEqual(problems, []);
@@ -136,13 +147,12 @@ test("typing a prompt paints four different emoji, with loading progress on the 
 test("picking a tile and downloading gives a 128 px PNG that matches it pixel for pixel", async () => {
   const { page } = await open();
   await makeOne(page, "A Sleepy Cat!! (v2)");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   await page.locator(".tile").nth(2).click();
-  assert.deepEqual(
-    await page.locator(".tile").evaluateAll((els) => els.map((e) => e.getAttribute("aria-pressed"))),
-    ["false", "false", "true", "false"],
-  );
-  assert.equal(await page.locator("#download").isEnabled(), true);
+  assert.deepEqual(await pressed(page), ["false", "false", "true", "false"]);
+  const third = (await readTiles(page))[2].print;
+  for (const id of ["#preview", "#inline", "#react"]) assert.equal(await printOf(page, id), third, `${id} follows the pick`);
+  assert.equal(await page.locator("#name").innerText(), ":a-sleepy-cat-v2:");
 
   const [download] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
   assert.equal(download.suggestedFilename(), "a-sleepy-cat-v2.png");
@@ -183,29 +193,147 @@ test("picking a tile and downloading gives a 128 px PNG that matches it pixel fo
   assert.equal(await status(page), "Downloaded a-sleepy-cat-v2.png");
 });
 
-test("making again gives new emoji, clears the pick, and does not reload the model", async () => {
+test("making again gives new emoji, goes back to the first one, and does not reload the model", async () => {
   const { page } = await open();
   await makeOne(page, "a rocket");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   const first = await readTiles(page);
-  await page.locator(".tile").nth(0).click();
+  await page.locator(".tile").nth(3).click();
   await page.click("#make");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   const second = await readTiles(page);
   assert.notDeepEqual(first.map((t) => t.print), second.map((t) => t.print));
   const s = await page.evaluate(() => globalThis.__stub);
   assert.equal(s.loads, 1, "model loaded once");
   assert.equal(s.generates.length, 2);
   assert.notEqual(s.generates[0].seed, s.generates[1].seed);
-  assert.equal(await page.locator('.tile[aria-pressed="true"]').count(), 0);
-  assert.equal(await page.locator("#download").isDisabled(), true);
+  assert.deepEqual(await pressed(page), ["true", "false", "false", "false"]);
+  assert.equal(await printOf(page, "#preview"), second[0].print);
+});
+
+test("Try again repaints the last prompt, even if the box was changed since", async () => {
+  const { page } = await open();
+  await makeOne(page, "a rocket");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  const first = await readTiles(page);
+  await page.fill("#prompt", "something half typed");
+  await page.click("#again");
+  await page.waitForFunction(() => globalThis.__stub.generates.length === 2);
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  const calls = await page.evaluate(() => globalThis.__stub.generates);
+  assert.equal(calls[1].prompt, "a rocket");
+  assert.notEqual(calls[0].seed, calls[1].seed);
+  assert.equal(await page.inputValue("#prompt"), "a rocket");
+  assert.notDeepEqual(first.map((t) => t.print), (await readTiles(page)).map((t) => t.print));
+});
+
+test("Copy puts the picked emoji on the clipboard as a 128 px PNG", async () => {
+  const { page, context } = await open();
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await makeOne(page, "a rocket");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  await page.locator(".tile").nth(1).click();
+  await page.click("#copy");
+  await waitStatus(page, "Copied.");
+  const got = await page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    const blob = await items[0].getType("image/png");
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement("canvas");
+    c.width = bmp.width;
+    c.height = bmp.height;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(bmp, 0, 0);
+    // Sample the middle of each 8 x 8 square to get the 16 x 16 sprite back.
+    const small = [];
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) small.push(...ctx.getImageData(x * 8 + 4, y * 8 + 4, 1, 1).data);
+    return { types: items[0].types, w: bmp.width, h: bmp.height, small };
+  });
+  assert.deepEqual(got.types, ["image/png"]);
+  assert.equal(got.w, 128);
+  assert.equal(got.h, 128);
+  const want = (await readTiles(page))[1].print.split(",").map(Number);
+  let wrong = 0;
+  for (let i = 0; i < want.length; i += 4) {
+    if (want[i + 3] === 0 ? got.small[i + 3] !== 0 : want.slice(i, i + 4).join() !== got.small.slice(i, i + 4).join()) wrong++;
+  }
+  assert.equal(wrong, 0, "the copied picture matches the picked tile");
+});
+
+test("where pictures can't be copied, Copy says so and points to Download", async () => {
+  const { page } = await open({ init: () => delete globalThis.ClipboardItem });
+  await makeOne(page, "a rocket");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  await page.click("#copy");
+  assert.match(await status(page), /can't copy pictures\. Use Download for Slack instead/);
+  assert.equal(await page.locator("#status").getAttribute("data-kind"), "error");
+});
+
+test("a known name is swapped for that person's description, and the emoji keeps the name", async () => {
+  const { page } = await open();
+  await makeOne(page, "haim running");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  const calls = await page.evaluate(() => globalThis.__stub.generates);
+  assert.equal(calls[0].prompt, "a bearded man with short dark hair and a gray scarf running", "what the model is asked for");
+  assert.equal(await page.locator("#name").innerText(), ":haim-running:");
+  assert.equal(await page.locator("#people-note").innerText(), "Haim is painted as a bearded man with short dark hair and a gray scarf.");
+  const [download] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
+  assert.equal(download.suggestedFilename(), "haim-running.png");
+
+  // Try again must go through the same swap, from the name, not from the description.
+  await page.click("#again");
+  await page.waitForFunction(() => globalThis.__stub.generates.length === 2);
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  assert.equal((await page.evaluate(() => globalThis.__stub.generates))[1].prompt, calls[0].prompt);
+  assert.equal(await page.inputValue("#prompt"), "haim running");
+
+  // A prompt without a name shows no note.
+  await makeOne(page, "a rocket");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  assert.equal(await page.locator("#people-note").isHidden(), true);
+  assert.equal((await page.evaluate(() => globalThis.__stub.generates))[2].prompt, "a rocket");
+});
+
+test("names match as whole words only, in any case, and odd names are safe", async () => {
+  const { page } = await open();
+  const r = await page.evaluate(async () => {
+    const { expandPeople, PEOPLE } = await import("./people.js");
+    const looks = PEOPLE.find((p) => p.name === "Haim").looks;
+    const team = [{ name: "Ido", looks: "a tall man with glasses" }, { name: "C++ (Dana)", looks: "a woman with red hair" }, { name: "נועה", looks: "a girl with a hat" }];
+    return {
+      looks,
+      words: looks.split(/\s+/).length,
+      plain: expandPeople("Haim").text,
+      upper: expandPeople("HAIM dancing").text,
+      twice: expandPeople("haim and Haim").text,
+      inside: [expandPeople("Chaim running").text, expandPeople("haimish").text, expandPeople("haim2").text],
+      punct: expandPeople("happy Haim, waving!").text,
+      none: expandPeople("a red heart"),
+      ido: expandPeople("ido and haim hugging", [...PEOPLE, ...team]),
+      idol: expandPeople("an idol", team).text,
+      odd: expandPeople("C++ (Dana) coding", team).text,
+      hebrew: expandPeople("נועה smiling", team).text,
+    };
+  });
+  assert.equal(r.plain, r.looks);
+  assert.ok(r.words <= 12, `the description is short enough to leave room for the rest of the prompt (${r.words} words)`);
+  assert.equal(r.upper, `${r.looks} dancing`);
+  assert.equal(r.twice, `${r.looks} and ${r.looks}`);
+  assert.deepEqual(r.inside, ["Chaim running", "haimish", "haim2"], "no match inside another word");
+  assert.equal(r.punct, `happy ${r.looks}, waving!`);
+  assert.deepEqual(r.none, { text: "a red heart", used: [] });
+  assert.equal(r.ido.text, `a tall man with glasses and ${r.looks} hugging`);
+  assert.deepEqual(r.ido.used.map((p) => p.name).sort(), ["Haim", "Ido"]);
+  assert.equal(r.idol, "an idol");
+  assert.equal(r.odd, "a woman with red hair coding");
+  assert.equal(r.hebrew, "a girl with a hat smiling");
 });
 
 test("pressing Enter in the box works like the button", async () => {
   const { page } = await open();
   await page.fill("#prompt", "a red heart");
   await page.press("#prompt", "Enter");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   assert.equal((await page.evaluate(() => globalThis.__stub.generates)).length, 1);
 });
 
@@ -221,7 +349,7 @@ test("while it is working, the button is off and a second request is ignored", a
   await makeOne(page, "a rocket");
   assert.equal(await page.locator("#make").isDisabled(), true);
   await page.evaluate(() => document.querySelector("#ask").requestSubmit());
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   assert.equal((await page.evaluate(() => globalThis.__stub.generates)).length, 1);
 });
 
@@ -232,32 +360,32 @@ test("a failed model download says why and can be retried", async () => {
   assert.match(await status(page), /Couldn't download models\/tessera_w8\.onnx \(HTTP 404\)/);
   assert.equal(await page.locator("#status").getAttribute("data-kind"), "error");
   assert.equal(await page.locator("#progress").isHidden(), true);
-  assert.equal(await page.locator("#actions").isHidden(), true);
+  assert.equal(await page.locator("#results").isHidden(), true);
   assert.equal(await page.locator("#make").isEnabled(), true);
   await page.click("#make");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   assert.equal(await page.evaluate(() => globalThis.__stub.loads), 2);
 });
 
 test("a failed painting says why, clears the tiles, and the next try works", async () => {
   const { page } = await open();
   await makeOne(page, "a rocket");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   await makeOne(page, "please explode");
   await waitStatus(page, "That didn't work");
   assert.match(await status(page), /the stub was asked to fail/);
-  for (const t of await readTiles(page)) assert.equal(t.painted, 0, "no stale emoji left on screen");
-  assert.equal(await page.locator("#actions").isHidden(), true);
-  assert.equal(await page.locator(".tile").first().isDisabled(), true);
+  for (const t of await readTiles(page)) assert.equal(t.painted, 0, "no stale emoji left behind");
+  assert.equal(await page.locator("#results").isHidden(), true, "the old emoji are not left on screen");
   await makeOne(page, "a rocket");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   assert.equal(await page.locator(".tile").first().isEnabled(), true);
+  assert.equal(await page.locator("#results").isVisible(), true);
 });
 
 test("without WebGPU it says it is painting on the processor", async () => {
   const { page } = await open({ init: () => (globalThis.__stubDevice = "cpu") });
   await makeOne(page, "a rocket");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   assert.match(await page.locator("#device").innerText(), /no WebGPU.*processor.*slower/);
 });
 
@@ -284,22 +412,53 @@ test("odd ?n values fall back to a sane count", async () => {
   }
 });
 
-test("on a phone-sized screen nothing overflows and the tiles sit two by two", async () => {
+test("on a phone-sized screen nothing overflows and everything is big enough to tap", async () => {
   const { page, problems } = await open({ viewport: { width: 380, height: 800 } });
   await makeOne(page, "a happy frog");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   await page.locator(".tile").nth(1).click();
   const m = await page.evaluate(() => ({
     scroll: document.documentElement.scrollWidth,
     inner: innerWidth,
     tops: [...document.querySelectorAll(".tile")].map((t) => Math.round(t.getBoundingClientRect().top)),
+    tile: document.querySelector(".tile").getBoundingClientRect().width,
+    preview: document.querySelector("#preview").getBoundingClientRect().width,
     input: document.querySelector("#prompt").getBoundingClientRect().width,
-    button: document.querySelector("#make").getBoundingClientRect().height,
+    buttons: ["#make", "#download", "#copy", "#again"].map((b) => document.querySelector(b).getBoundingClientRect().height),
+    backdrop: (() => {
+      const c = document.querySelector("#backdrop");
+      const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+      let drawn = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 0) drawn++;
+      // Does any icon pixel sit under the headline or the line below it?
+      let underWords = 0;
+      const k = c.width / c.getBoundingClientRect().width;
+      for (const el of document.querySelectorAll(".masthead h1, .masthead .lede, .card")) {
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) continue;
+        const box = c.getContext("2d").getImageData(r.left * k, (r.top + scrollY) * k, r.width * k, r.height * k).data;
+        for (let i = 3; i < box.length; i += 4) if (box[i] > 0) underWords++;
+      }
+      return {
+        share: drawn / (c.width * c.height),
+        height: c.getBoundingClientRect().height,
+        page: document.querySelector(".page").offsetHeight,
+        underWords,
+        ...globalThis.__backdrop,
+      };
+    })(),
   }));
   assert.ok(m.scroll <= m.inner, `no sideways scroll (${m.scroll} > ${m.inner})`);
-  assert.equal(new Set(m.tops).size, 2, "two rows of tiles");
+  assert.equal(new Set(m.tops).size, 1, "the four choices sit in one row");
+  assert.ok(m.tile >= 56, `each choice is big enough to tap (${m.tile}px)`);
+  assert.ok(m.preview >= 160, "the large preview is large");
   assert.ok(m.input >= 180, "the text box stays usable");
-  assert.ok(m.button >= 44, "the button is big enough to tap");
+  for (const b of m.buttons) assert.ok(b >= 44, "buttons are big enough to tap");
+  assert.equal(m.backdrop.icons, 10, "ten different background icons");
+  assert.ok(m.backdrop.placed >= 4, `icons show even on a phone (${m.backdrop.placed})`);
+  assert.ok(m.backdrop.share > 0.001 && m.backdrop.share < 0.08, `the background stays sparse (${m.backdrop.share.toFixed(4)})`);
+  assert.ok(m.backdrop.height >= m.backdrop.page, "the background reaches the bottom of the page");
+  assert.equal(m.backdrop.underWords, 0, "no icon is cut off by a box or sits under the words");
   assert.deepEqual(problems, []);
   await page.screenshot({ path: path.join(out, "phone-results.png"), fullPage: true });
 });
@@ -307,7 +466,7 @@ test("on a phone-sized screen nothing overflows and the tiles sit two by two", a
 test("the keyboard alone can pick and download", async () => {
   const { page } = await open();
   await makeOne(page, "a rocket");
-  await waitStatus(page, "Tap the one you like.");
+  await waitStatus(page, "Painted. Tap another one to switch.");
   await page.locator(".tile").nth(3).focus();
   await page.keyboard.press("Space");
   assert.equal(await page.locator(".tile").nth(3).getAttribute("aria-pressed"), "true");

@@ -154,6 +154,14 @@ test("the same prompt and seed paint the same emoji again", async () => {
   assert.equal(again.print, heart.print);
 });
 
+test("a prompt with a known name paints a picture too", async () => {
+  const haim = await paint("Haim waving", 7, "real-haim-waving.png");
+  assert.ok(haim.painted >= 20, `only ${haim.painted} pixels painted`);
+  assert.ok(haim.colours >= 3, `only ${haim.colours} colours`);
+  assert.notEqual(haim.print, heart.print);
+  assert.deepEqual(haim.problems, []);
+});
+
 let failed = 0;
 for (const { name, fn } of tests) {
   try {
