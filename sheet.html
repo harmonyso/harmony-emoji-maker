@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Harmony emoji maker: sheet</title>
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      .sheet-row { display: grid; grid-template-columns: repeat(4, 4.5rem); gap: 0.5rem; margin: 0.4rem 0 1.1rem; }
+      .sheet-row canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; background: var(--check); }
+      .sheet-label { margin: 0; font-weight: 700; }
+      .sheet-text { margin: 0; color: var(--soft-ink); font-size: 0.875rem; }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="card">
+        <h1 style="margin: 0 0 0.3rem; font-size: 1.6rem">Sheet</h1>
+        <p class="note" style="margin-top: 0">
+          Paints four emoji for each prompt, one prompt after another, so several can be compared side by side. With no
+          prompts given it paints everyone the maker knows by name. Add <code>?p=first prompt|second prompt</code> to
+          the address to choose the prompts, and <code>&amp;seed=7</code> to repeat a run.
+        </p>
+        <p id="status" class="status" role="status" aria-live="polite">Starting</p>
+        <div id="rows"></div>
+      </div>
+    </main>
+    <script type="module" src="sheet.js"></script>
+  </body>
+</html>

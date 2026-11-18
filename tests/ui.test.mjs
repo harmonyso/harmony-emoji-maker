@@ -32,7 +32,7 @@ async function open({ query = "", viewport = { width: 1100, height: 900 }, init 
   await page.route("**/lib/client.js", (route) => route.fulfill({ contentType: "text/javascript", body: stub }));
   if (init) await page.addInitScript(init);
   await page.goto(server.url + query);
-  await page.waitForFunction(() => globalThis.__harmony);
+  if (!query.startsWith("sheet.html")) await page.waitForFunction(() => globalThis.__harmony);
   return { page, context, problems };
 }
 
@@ -499,6 +499,35 @@ test("the keyboard alone can pick and download", async () => {
   await page.locator("#download").focus();
   const [download] = await Promise.all([page.waitForEvent("download"), page.keyboard.press("Enter")]);
   assert.equal(download.suggestedFilename(), "a-rocket.png");
+});
+
+test("the sheet page paints four emoji for each prompt it is given", async () => {
+  const { page, problems } = await open({ query: "sheet.html?p=Haim waving|a rocket&seed=3" });
+  await page.waitForFunction(() => document.querySelector("#status").textContent.startsWith("Done"), null, { timeout: 15_000 });
+  assert.equal(await page.locator("#status").innerText(), "Done: 2 of 2 painted");
+  assert.deepEqual(await page.locator(".sheet-label").allInnerTexts(), ["Haim waving", "a rocket"]);
+  const calls = await page.evaluate(() => globalThis.__stub.generates);
+  assert.deepEqual(calls.map((c) => [c.prompt, c.n, c.seed]), [
+    ["a bearded man with short dark hair and a gray scarf waving", 4, 3],
+    ["a rocket", 4, 3],
+  ]);
+  const painted = await page.evaluate(() =>
+    [...document.querySelectorAll(".sheet-row canvas")].map((c) => {
+      const d = c.getContext("2d").getImageData(0, 0, 16, 16).data;
+      let n = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+      return n;
+    }),
+  );
+  assert.equal(painted.length, 8);
+  for (const n of painted) assert.ok(n > 100, `painted ${n} px`);
+  assert.deepEqual(problems, []);
+});
+
+test("the sheet page with no prompts paints everyone it knows", async () => {
+  const { page } = await open({ query: "sheet.html" });
+  await page.waitForFunction(() => document.querySelector("#status").textContent.startsWith("Done"), null, { timeout: 20_000 });
+  assert.deepEqual(await page.locator(".sheet-label").allInnerTexts(), ["Haim", "Nir", "Tal", "Alon", "Ran", "Or", "Dudu"]);
 });
 
 let failed = 0;

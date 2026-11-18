@@ -64,7 +64,7 @@ done
 
 rm -rf "$SITE"
 mkdir -p "$SITE"
-cp index.html style.css app.js backdrop.js people.js "$SITE/"
+cp index.html style.css app.js backdrop.js people.js sheet.html sheet.js "$SITE/"
 cp -r "${UP}/lib" "${UP}/models" "$SITE/"
 touch "$SITE/.nojekyll"
 echo "built ${SITE}/ from upstream ${REV:0:7}:"
