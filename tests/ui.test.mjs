@@ -274,9 +274,9 @@ test("a known name is rewritten into a description, action first, and the emoji 
   await makeOne(page, "haim running");
   await waitStatus(page, "Painted. Tap another one to switch.");
   const calls = await page.evaluate(() => globalThis.__stub.generates);
-  assert.equal(calls[0].prompt, "a man running, curly dark hair, beard, purple t-shirt", "what the model is asked for");
+  assert.equal(calls[0].prompt, "a man running, curly dark hair, brown beard, purple t-shirt", "what the model is asked for");
   assert.equal(await page.locator("#name").innerText(), ":haim-running:");
-  assert.equal(await page.locator("#people-note").innerText(), "Haim is painted as a man: curly dark hair, beard, purple t-shirt.");
+  assert.equal(await page.locator("#people-note").innerText(), "Haim is painted as a man: curly dark hair, brown beard, purple t-shirt.");
   const [download] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
   assert.equal(download.suggestedFilename(), "haim-running.png");
 
@@ -344,16 +344,20 @@ test("people: whole-word names, capital-only names, the action first, and overri
       line: describePeople(),
       shown: document.querySelector("#known").textContent,
       explained: expandPeople("Dudu with a red shirt and long hair").used.map(explain),
+      colours: Object.fromEntries(
+        PEOPLE.map((p) => [p.name, p.features.flatMap((f) => f.text.match(/\b(dark|black|brown|purple)\b/g) ?? [])]),
+      ),
+      plainBeards: PEOPLE.filter((p) => p.features.some((f) => f.text === "beard")).map((p) => p.name),
       longest: Math.max(...PEOPLE.map((p) => t(`${p.name} waving`).split(/\s+/).length)),
     };
   });
   assert.deepEqual(r.names, ["Haim", "Nir", "Tal", "Alon", "Ran", "Or", "Dudu"]);
   assert.deepEqual(r.alone, {
-    Haim: "a man, curly dark hair, beard, purple t-shirt",
+    Haim: "a man, curly dark hair, brown beard, purple t-shirt",
     Nir: "a man, brown hair, glasses, purple t-shirt",
     Tal: "a man, ginger hair, ginger beard, purple t-shirt",
     Alon: "a man, dark quiff, stubble, purple t-shirt",
-    Ran: "a man, short dark hair, beard, purple t-shirt",
+    Ran: "a man, short dark hair, brown beard, purple t-shirt",
     Or: "a woman, dark hair tied back, earrings, purple t-shirt",
     Dudu: "a man, bald, glasses, short beard, purple t-shirt",
   });
@@ -365,7 +369,7 @@ test("people: whole-word names, capital-only names, the action first, and overri
   assert.deepEqual(r.inside, ["Chaim running", "haimish", "haim2", "nirvana", "a souvenir", "a cat or a dog", "a dog that ran away", "OR gate", "an orange"]);
   assert.deepEqual(r.none, { text: "a red heart", used: [] });
   assert.equal(r.or, "a woman drinking coffee, dark hair tied back, earrings, purple t-shirt");
-  assert.equal(r.ran, "a man pointing, short dark hair, beard, purple t-shirt");
+  assert.equal(r.ran, "a man pointing, short dark hair, brown beard, purple t-shirt");
   assert.equal(r.hair, "a man with hair, glasses, short beard, purple t-shirt");
   assert.equal(r.longHair, "a man with long blonde hair, glasses, short beard, purple t-shirt");
   assert.equal(r.shaved, "shaved man, curly dark hair, purple t-shirt");
@@ -387,6 +391,10 @@ test("people: whole-word names, capital-only names, the action first, and overri
   assert.equal(r.shown, r.line, "the page lists who it knows");
   assert.deepEqual(r.explained, ["Dudu is painted as a man: glasses, short beard. Your prompt decides the hair and clothes."]);
   assert.ok(r.longest <= 11, `a name plus one action word stays short (${r.longest} words)`);
+  for (const [name, colours] of Object.entries(r.colours)) {
+    assert.equal(new Set(colours).size, colours.length, `${name} uses dark, black, brown or purple twice (${colours}): on the real model that smeared over the face`);
+  }
+  assert.deepEqual(r.plainBeards, [], "a beard with no colour takes the shirt's colour");
 });
 
 test("pressing Enter in the box works like the button", async () => {
@@ -542,7 +550,7 @@ test("the sheet page paints four emoji for each prompt it is given", async () =>
   assert.deepEqual(await page.locator(".sheet-label").allInnerTexts(), ["Haim waving", "a rocket"]);
   const calls = await page.evaluate(() => globalThis.__stub.generates);
   assert.deepEqual(calls.map((c) => [c.prompt, c.n, c.seed]), [
-    ["a man waving, curly dark hair, beard, purple t-shirt", 4, 3],
+    ["a man waving, curly dark hair, brown beard, purple t-shirt", 4, 3],
     ["a rocket", 4, 3],
   ]);
   const painted = await page.evaluate(() =>

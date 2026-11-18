@@ -13,7 +13,9 @@
 //    ignores the action. So the name becomes just "a man" or "a woman", the rest of the prompt
 //    stays next to it, and the person's features are listed at the end.
 // 2. This small model mixes colours up easily: "a dark beard and white t-shirt" came out as a
-//    white beard. One colour word per feature, and short features, work best.
+//    white beard. Every feature needs its own colour, and no colour word twice: a plain "beard"
+//    turned purple like the shirt, "dark hair, dark beard" turned the whole face purple, and
+//    "brown hair, brown beard" turned the skin brown. "dark hair, brown beard" came out right.
 //
 // Each feature has a kind. If the prompt itself talks about that kind of thing ("with hair",
 // "in a red suit", "with sunglasses"), the person's own feature of that kind is left out, so
@@ -29,7 +31,7 @@
 const SHIRT = { kind: "clothes", text: "purple t-shirt" };
 
 export const PEOPLE = [
-  { name: "Haim", noun: "man", features: [{ kind: "hair", text: "curly dark hair" }, { kind: "beard", text: "beard" }, SHIRT] },
+  { name: "Haim", noun: "man", features: [{ kind: "hair", text: "curly dark hair" }, { kind: "beard", text: "brown beard" }, SHIRT] },
   { name: "Nir", noun: "man", features: [{ kind: "hair", text: "brown hair" }, { kind: "glasses", text: "glasses" }, SHIRT] },
   { name: "Tal", noun: "man", features: [{ kind: "hair", text: "ginger hair" }, { kind: "beard", text: "ginger beard" }, SHIRT] },
   { name: "Alon", noun: "man", features: [{ kind: "hair", text: "dark quiff" }, { kind: "beard", text: "stubble" }, SHIRT] },
@@ -38,7 +40,7 @@ export const PEOPLE = [
     noun: "man",
     capital: true,
     // A tie was tried here; it never showed, and it turned his shirt white and his beard purple.
-    features: [{ kind: "hair", text: "short dark hair" }, { kind: "beard", text: "beard" }, SHIRT],
+    features: [{ kind: "hair", text: "short dark hair" }, { kind: "beard", text: "brown beard" }, SHIRT],
   },
   {
     name: "Or",
