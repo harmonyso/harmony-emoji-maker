@@ -37,7 +37,8 @@ export const PEOPLE = [
     name: "Ran",
     noun: "man",
     capital: true,
-    features: [{ kind: "hair", text: "short dark hair" }, { kind: "beard", text: "beard" }, { kind: "clothes", text: "purple shirt and tie" }],
+    // A tie was tried here; it never showed, and it turned his shirt white and his beard purple.
+    features: [{ kind: "hair", text: "short dark hair" }, { kind: "beard", text: "beard" }, SHIRT],
   },
   {
     name: "Or",
@@ -76,7 +77,8 @@ export function describePeople(people = PEOPLE) {
   const list = new Intl.ListFormat("en", { type: "conjunction" });
   return (
     `It knows these people by name: ${people.map((p) => p.name).join(", ")}.` +
-    (strict.length ? ` Write ${list.format(strict)} with a capital letter.` : "")
+    (strict.length ? ` Write ${list.format(strict)} with a capital letter.` : "") +
+    " Poses, moods and things they wear work best: waving, laughing, with sunglasses. Objects and scenes, like eating pizza or riding a rocket, mostly don't fit in a picture this small."
   );
 }
 
@@ -118,7 +120,7 @@ export function expandPeople(prompt, people = PEOPLE) {
 /** A sentence for the page saying how a named person will be painted. */
 export function explain(person) {
   const base = `${person.name} is painted as a ${person.noun}`;
-  const feats = person.features.length ? ` with ${person.features.join(", ")}` : "";
+  const feats = person.features.length ? `: ${person.features.join(", ")}` : "";
   const yours = person.overridden.length ? ` Your prompt decides the ${person.overridden.join(" and ")}.` : "";
   return `${base}${feats}.${yours}`;
 }

@@ -276,7 +276,7 @@ test("a known name is rewritten into a description, action first, and the emoji 
   const calls = await page.evaluate(() => globalThis.__stub.generates);
   assert.equal(calls[0].prompt, "a man running, curly dark hair, beard, purple t-shirt", "what the model is asked for");
   assert.equal(await page.locator("#name").innerText(), ":haim-running:");
-  assert.equal(await page.locator("#people-note").innerText(), "Haim is painted as a man with curly dark hair, beard, purple t-shirt.");
+  assert.equal(await page.locator("#people-note").innerText(), "Haim is painted as a man: curly dark hair, beard, purple t-shirt.");
   const [download] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
   assert.equal(download.suggestedFilename(), "haim-running.png");
 
@@ -293,7 +293,7 @@ test("a known name is rewritten into a description, action first, and the emoji 
   assert.equal((await page.evaluate(() => globalThis.__stub.generates))[2].prompt, "a man with hair, glasses, short beard, purple t-shirt");
   assert.equal(
     await page.locator("#people-note").innerText(),
-    "Dudu is painted as a man with glasses, short beard, purple t-shirt. Your prompt decides the hair.",
+    "Dudu is painted as a man: glasses, short beard, purple t-shirt. Your prompt decides the hair.",
   );
 
   // A prompt without a name shows no note.
@@ -353,7 +353,7 @@ test("people: whole-word names, capital-only names, the action first, and overri
     Nir: "a man, brown hair, glasses, purple t-shirt",
     Tal: "a man, ginger hair, ginger beard, purple t-shirt",
     Alon: "a man, dark quiff, stubble, purple t-shirt",
-    Ran: "a man, short dark hair, beard, purple shirt and tie",
+    Ran: "a man, short dark hair, beard, purple t-shirt",
     Or: "a woman, dark hair tied back, earrings, purple t-shirt",
     Dudu: "a man, bald, glasses, short beard, purple t-shirt",
   });
@@ -365,7 +365,7 @@ test("people: whole-word names, capital-only names, the action first, and overri
   assert.deepEqual(r.inside, ["Chaim running", "haimish", "haim2", "nirvana", "a souvenir", "a cat or a dog", "a dog that ran away", "OR gate", "an orange"]);
   assert.deepEqual(r.none, { text: "a red heart", used: [] });
   assert.equal(r.or, "a woman drinking coffee, dark hair tied back, earrings, purple t-shirt");
-  assert.equal(r.ran, "a man pointing, short dark hair, beard, purple shirt and tie");
+  assert.equal(r.ran, "a man pointing, short dark hair, beard, purple t-shirt");
   assert.equal(r.hair, "a man with hair, glasses, short beard, purple t-shirt");
   assert.equal(r.longHair, "a man with long blonde hair, glasses, short beard, purple t-shirt");
   assert.equal(r.shaved, "shaved man, curly dark hair, purple t-shirt");
@@ -378,9 +378,14 @@ test("people: whole-word names, capital-only names, the action first, and overri
   assert.equal(r.ido, "a man jumping, blond hair");
   assert.equal(r.odd, "a woman coding, red hair");
   assert.equal(r.hebrew, "a girl smiling, yellow dress");
-  assert.equal(r.line, "It knows these people by name: Haim, Nir, Tal, Alon, Ran, Or, Dudu. Write Ran and Or with a capital letter.");
+  assert.equal(
+    r.line,
+    "It knows these people by name: Haim, Nir, Tal, Alon, Ran, Or, Dudu. Write Ran and Or with a capital letter. " +
+      "Poses, moods and things they wear work best: waving, laughing, with sunglasses. " +
+      "Objects and scenes, like eating pizza or riding a rocket, mostly don't fit in a picture this small.",
+  );
   assert.equal(r.shown, r.line, "the page lists who it knows");
-  assert.deepEqual(r.explained, ["Dudu is painted as a man with glasses, short beard. Your prompt decides the hair and clothes."]);
+  assert.deepEqual(r.explained, ["Dudu is painted as a man: glasses, short beard. Your prompt decides the hair and clothes."]);
   assert.ok(r.longest <= 11, `a name plus one action word stays short (${r.longest} words)`);
 });
 
