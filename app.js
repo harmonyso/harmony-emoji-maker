@@ -2,7 +2,7 @@
 // The model, sampler and downloads live in ./lib (fetched at build time, see README for credits).
 
 import { loadEngine, crashedLastTime, GRID, N } from "./lib/client.js";
-import { expandPeople, describePeople } from "./people.js";
+import { expandPeople, describePeople, explain } from "./people.js";
 
 const EXPORT_SIZE = 128; // Slack's recommended emoji size
 const STEPS = 16;
@@ -160,9 +160,9 @@ async function make() {
     return;
   }
 
-  // A known name ("Haim") is swapped for that person's description; the model can't read names.
+  // A known name ("Haim") is rewritten into a description; the model can't read names.
   const { text, used } = expandPeople(prompt);
-  els.peopleNote.textContent = used.map((p) => `${p.name} is painted as ${p.looks}.`).join(" ");
+  els.peopleNote.textContent = used.map(explain).join(" ");
 
   result = null;
   setBusy(true);

@@ -269,91 +269,119 @@ test("where pictures can't be copied, Copy says so and points to Download", asyn
   assert.equal(await page.locator("#status").getAttribute("data-kind"), "error");
 });
 
-test("a known name is swapped for that person's description, and the emoji keeps the name", async () => {
+test("a known name is rewritten into a description, action first, and the emoji keeps the name", async () => {
   const { page } = await open();
   await makeOne(page, "haim running");
   await waitStatus(page, "Painted. Tap another one to switch.");
   const calls = await page.evaluate(() => globalThis.__stub.generates);
-  assert.equal(calls[0].prompt, "a bearded man with curly dark hair in a purple t-shirt running", "what the model is asked for");
+  assert.equal(calls[0].prompt, "a man running, curly dark hair, beard, purple t-shirt", "what the model is asked for");
   assert.equal(await page.locator("#name").innerText(), ":haim-running:");
-  assert.equal(await page.locator("#people-note").innerText(), "Haim is painted as a bearded man with curly dark hair in a purple t-shirt.");
+  assert.equal(await page.locator("#people-note").innerText(), "Haim is painted as a man with curly dark hair, beard, purple t-shirt.");
   const [download] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
   assert.equal(download.suggestedFilename(), "haim-running.png");
 
-  // Try again must go through the same swap, from the name, not from the description.
+  // Try again must go through the same rewrite, from the name, not from the description.
   await page.click("#again");
   await page.waitForFunction(() => globalThis.__stub.generates.length === 2);
   await waitStatus(page, "Painted. Tap another one to switch.");
   assert.equal((await page.evaluate(() => globalThis.__stub.generates))[1].prompt, calls[0].prompt);
   assert.equal(await page.inputValue("#prompt"), "haim running");
 
+  // Overriding a feature: the person's own hair is dropped, and the page says so.
+  await makeOne(page, "Dudu with hair");
+  await waitStatus(page, "Painted. Tap another one to switch.");
+  assert.equal((await page.evaluate(() => globalThis.__stub.generates))[2].prompt, "a man with hair, glasses, short beard, purple t-shirt");
+  assert.equal(
+    await page.locator("#people-note").innerText(),
+    "Dudu is painted as a man with glasses, short beard, purple t-shirt. Your prompt decides the hair.",
+  );
+
   // A prompt without a name shows no note.
   await makeOne(page, "a rocket");
   await waitStatus(page, "Painted. Tap another one to switch.");
   assert.equal(await page.locator("#people-note").isHidden(), true);
-  assert.equal((await page.evaluate(() => globalThis.__stub.generates))[2].prompt, "a rocket");
+  assert.equal((await page.evaluate(() => globalThis.__stub.generates))[3].prompt, "a rocket");
 });
 
-test("names match as whole words only, in any case, and odd names are safe", async () => {
+test("people: whole-word names, capital-only names, the action first, and overrides", async () => {
   const { page } = await open();
   const r = await page.evaluate(async () => {
-    const { expandPeople, PEOPLE } = await import("./people.js");
-    const looks = PEOPLE.find((p) => p.name === "Haim").looks;
-    const team = [{ name: "Ido", looks: "a tall man with glasses" }, { name: "C++ (Dana)", looks: "a woman with red hair" }, { name: "נועה", looks: "a girl with a hat" }];
+    const { expandPeople, describePeople, explain, PEOPLE } = await import("./people.js");
+    const t = (p, people) => expandPeople(p, people).text;
+    const team = [
+      { name: "Ido", noun: "man", features: [{ kind: "hair", text: "blond hair" }] },
+      { name: "C++ (Dana)", noun: "woman", features: [{ kind: "hair", text: "red hair" }] },
+      { name: "נועה", noun: "girl", features: [{ kind: "clothes", text: "yellow dress" }] },
+    ];
     return {
-      looks,
-      words: looks.split(/\s+/).length,
-      plain: expandPeople("Haim").text,
-      nir: expandPeople("nir dancing").text,
       names: PEOPLE.map((p) => p.name),
-      words2: ["a cat or a dog", "a dog that ran away", "OR gate", "an orange"].map((t) => expandPeople(t).text),
-      or: expandPeople("Or drinking coffee").text,
-      ran: expandPeople("happy Ran").text,
-      dudu: expandPeople("DUDU waving").text,
-      tal: expandPeople("tal").text,
-      alon: expandPeople("alon").text,
-      line: (await import("./people.js")).describePeople(),
-      shown: document.querySelector("#known").textContent,
-      notNir: [expandPeople("nirvana").text, expandPeople("a souvenir").text],
-      everyone: PEOPLE.map((p) => ({ name: p.name, looks: p.looks, words: p.looks.split(/\s+/).length })),
-      upper: expandPeople("HAIM dancing").text,
-      twice: expandPeople("haim and Haim").text,
-      inside: [expandPeople("Chaim running").text, expandPeople("haimish").text, expandPeople("haim2").text],
-      punct: expandPeople("happy Haim, waving!").text,
+      // every person, by name alone
+      alone: Object.fromEntries(PEOPLE.map((p) => [p.name, t(p.name)])),
+      // the action stays next to the person, the features go last
+      waving: t("Tal waving"),
+      upper: t("TAL dancing"),
+      middle: t("happy Tal with a guitar"),
+      afterWith: t("a dog with Tal"),
+      punct: t("Tal, waving!"),
+      // no match inside other words, and ordinary words are left alone
+      inside: ["Chaim running", "haimish", "haim2", "nirvana", "a souvenir", "a cat or a dog", "a dog that ran away", "OR gate", "an orange"].map((p) => t(p)),
       none: expandPeople("a red heart"),
-      ido: expandPeople("ido and haim hugging", [...PEOPLE, ...team]),
-      idol: expandPeople("an idol", team).text,
-      odd: expandPeople("C++ (Dana) coding", team).text,
-      hebrew: expandPeople("נועה smiling", team).text,
+      or: t("Or drinking coffee"),
+      ran: t("Ran pointing"),
+      // overrides, one kind at a time
+      hair: t("Dudu with hair"),
+      longHair: t("Dudu with long blonde hair"),
+      shaved: t("shaved Haim"),
+      shades: t("Nir with sunglasses"),
+      suit: t("Tal in a red suit"),
+      hat: t("Tal wearing a hat"),
+      two: expandPeople("Tal and Nir hugging"),
+      // custom lists: odd characters and other alphabets
+      idol: t("an idol", team),
+      ido: t("ido jumping", team),
+      odd: t("C++ (Dana) coding", team),
+      hebrew: t("נועה smiling", team),
+      line: describePeople(),
+      shown: document.querySelector("#known").textContent,
+      explained: expandPeople("Dudu with a red shirt and long hair").used.map(explain),
+      longest: Math.max(...PEOPLE.map((p) => t(`${p.name} waving`).split(/\s+/).length)),
     };
   });
-  assert.equal(r.plain, r.looks);
-  assert.ok(r.words <= 13, `the description is short enough to leave room for the rest of the prompt (${r.words} words)`);
-  assert.equal(r.nir, "a man with brown hair and glasses in a purple t-shirt dancing");
   assert.deepEqual(r.names, ["Haim", "Nir", "Tal", "Alon", "Ran", "Or", "Dudu"]);
-  // Or and Ran are English words too: only the capitalised form is the person.
-  assert.deepEqual(r.words2, ["a cat or a dog", "a dog that ran away", "OR gate", "an orange"], "ordinary words are left alone");
-  assert.equal(r.or, "a woman with dark hair tied back and earrings in a purple t-shirt drinking coffee");
-  assert.equal(r.ran, "happy a bearded man with short dark hair in a purple shirt and tie");
-  assert.equal(r.dudu, "a bald man with glasses and a short beard in a purple t-shirt waving");
-  assert.equal(r.tal, "a man with ginger hair and a ginger beard in a purple t-shirt");
-  assert.equal(r.alon, "a man with a dark quiff and stubble in a purple t-shirt");
+  assert.deepEqual(r.alone, {
+    Haim: "a man, curly dark hair, beard, purple t-shirt",
+    Nir: "a man, brown hair, glasses, purple t-shirt",
+    Tal: "a man, ginger hair, ginger beard, purple t-shirt",
+    Alon: "a man, dark quiff, stubble, purple t-shirt",
+    Ran: "a man, short dark hair, beard, purple shirt and tie",
+    Or: "a woman, dark hair tied back, earrings, purple t-shirt",
+    Dudu: "a man, bald, glasses, short beard, purple t-shirt",
+  });
+  assert.equal(r.waving, "a man waving, ginger hair, ginger beard, purple t-shirt");
+  assert.equal(r.upper, "a man dancing, ginger hair, ginger beard, purple t-shirt");
+  assert.equal(r.middle, "happy man with a guitar, ginger hair, ginger beard, purple t-shirt");
+  assert.equal(r.afterWith, "a dog with a man, ginger hair, ginger beard, purple t-shirt");
+  assert.equal(r.punct, "a man, waving!, ginger hair, ginger beard, purple t-shirt");
+  assert.deepEqual(r.inside, ["Chaim running", "haimish", "haim2", "nirvana", "a souvenir", "a cat or a dog", "a dog that ran away", "OR gate", "an orange"]);
+  assert.deepEqual(r.none, { text: "a red heart", used: [] });
+  assert.equal(r.or, "a woman drinking coffee, dark hair tied back, earrings, purple t-shirt");
+  assert.equal(r.ran, "a man pointing, short dark hair, beard, purple shirt and tie");
+  assert.equal(r.hair, "a man with hair, glasses, short beard, purple t-shirt");
+  assert.equal(r.longHair, "a man with long blonde hair, glasses, short beard, purple t-shirt");
+  assert.equal(r.shaved, "shaved man, curly dark hair, purple t-shirt");
+  assert.equal(r.shades, "a man with sunglasses, brown hair, purple t-shirt");
+  assert.equal(r.suit, "a man in a red suit, ginger hair, ginger beard");
+  assert.equal(r.hat, "a man wearing a hat, ginger hair, ginger beard, purple t-shirt", "a hat is not a change of clothes");
+  assert.equal(r.two.text, "a man and a man hugging, brown hair, glasses, purple t-shirt, ginger hair, ginger beard");
+  assert.deepEqual(r.two.used.map((p) => p.name).sort(), ["Nir", "Tal"]);
+  assert.equal(r.idol, "an idol");
+  assert.equal(r.ido, "a man jumping, blond hair");
+  assert.equal(r.odd, "a woman coding, red hair");
+  assert.equal(r.hebrew, "a girl smiling, yellow dress");
   assert.equal(r.line, "It knows these people by name: Haim, Nir, Tal, Alon, Ran, Or, Dudu. Write Ran and Or with a capital letter.");
   assert.equal(r.shown, r.line, "the page lists who it knows");
-  assert.deepEqual(r.notNir, ["nirvana", "a souvenir"]);
-  for (const p of r.everyone) assert.ok(p.words <= 13, `${p.name}: ${p.words} words`);
-  assert.equal(new Set(r.everyone.map((p) => p.name.toLowerCase())).size, r.everyone.length, "no name is listed twice");
-  for (const p of r.everyone) assert.match(p.looks, /in a purple (t-shirt|shirt and tie)$/, `${p.name} wears the Harmony colour`);
-  assert.equal(r.upper, `${r.looks} dancing`);
-  assert.equal(r.twice, `${r.looks} and ${r.looks}`);
-  assert.deepEqual(r.inside, ["Chaim running", "haimish", "haim2"], "no match inside another word");
-  assert.equal(r.punct, `happy ${r.looks}, waving!`);
-  assert.deepEqual(r.none, { text: "a red heart", used: [] });
-  assert.equal(r.ido.text, `a tall man with glasses and ${r.looks} hugging`);
-  assert.deepEqual(r.ido.used.map((p) => p.name).sort(), ["Haim", "Ido"]);
-  assert.equal(r.idol, "an idol");
-  assert.equal(r.odd, "a woman with red hair coding");
-  assert.equal(r.hebrew, "a girl with a hat smiling");
+  assert.deepEqual(r.explained, ["Dudu is painted as a man with glasses, short beard. Your prompt decides the hair and clothes."]);
+  assert.ok(r.longest <= 11, `a name plus one action word stays short (${r.longest} words)`);
 });
 
 test("pressing Enter in the box works like the button", async () => {
@@ -509,7 +537,7 @@ test("the sheet page paints four emoji for each prompt it is given", async () =>
   assert.deepEqual(await page.locator(".sheet-label").allInnerTexts(), ["Haim waving", "a rocket"]);
   const calls = await page.evaluate(() => globalThis.__stub.generates);
   assert.deepEqual(calls.map((c) => [c.prompt, c.n, c.seed]), [
-    ["a bearded man with curly dark hair in a purple t-shirt waving", 4, 3],
+    ["a man waving, curly dark hair, beard, purple t-shirt", 4, 3],
     ["a rocket", 4, 3],
   ]);
   const painted = await page.evaluate(() =>
