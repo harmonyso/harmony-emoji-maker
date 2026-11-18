@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Harmony emoji maker</title>
+    <meta
+      name="description"
+      content="Describe an emoji and a tiny model paints four pixel-art versions in your browser. Pick one and add it to Slack."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect width='8' height='8' fill='%235B3DF5'/%3E%3Crect x='2' y='2' width='1' height='2' fill='%23FFC531'/%3E%3Crect x='5' y='2' width='1' height='2' fill='%23FFC531'/%3E%3Crect x='1' y='5' width='1' height='1' fill='%23FFC531'/%3E%3Crect x='2' y='6' width='4' height='1' fill='%23FFC531'/%3E%3Crect x='6' y='5' width='1' height='1' fill='%23FFC531'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="masthead">
+        <h1>Harmony emoji maker</h1>
+        <p class="lede">Describe an emoji. A tiny model paints four of them right here in your browser. Keep the one you like.</p>
+      </header>
+
+      <form id="ask" class="ask" novalidate>
+        <label for="prompt">What should it be?</label>
+        <div class="ask-row">
+          <input
+            id="prompt"
+            name="prompt"
+            type="text"
+            maxlength="120"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            enterkeyhint="go"
+            placeholder="a happy frog"
+          />
+          <button id="make" class="primary" type="submit">Make 4</button>
+        </div>
+        <div class="ideas" role="group" aria-label="Ideas to try">
+          <button type="button" data-idea="a slice of pizza">a slice of pizza</button>
+          <button type="button" data-idea="a red heart">a red heart</button>
+          <button type="button" data-idea="a rocket">a rocket</button>
+          <button type="button" data-idea="a sleepy cat">a sleepy cat</button>
+        </div>
+        <p id="hint" class="hint">Write in English. The first run downloads the model, about 115 MB.</p>
+      </form>
+
+      <section class="results" aria-label="Results">
+        <div id="progress" class="progress" hidden>
+          <div class="bar" role="progressbar" aria-label="Model loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span id="bar-fill"></span>
+          </div>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+        <div id="tiles" class="tiles" role="group" aria-label="Emoji options"></div>
+        <div id="actions" class="actions" hidden>
+          <button id="download" class="primary" type="button" disabled>Download for Slack</button>
+          <p class="note">A 128 × 128 PNG with a see-through background.</p>
+        </div>
+        <p id="device" class="note"></p>
+      </section>
+
+      <footer class="credits">
+        <p>
+          The model is
+          <a href="https://huggingface.co/thejagstudio/tessera-small">Tessera-small</a> by Jagrat Patel, trained on
+          Angais' Pixel Art Atlas. The in-browser port and sampler come from
+          <a href="https://huggingface.co/spaces/cfahlgren1/slack-moji">Slack Moji</a> by Caleb Fahlgren. Both are
+          CC BY-NC 4.0, so this page is for non-commercial use.
+        </p>
+        <p>Nothing you type leaves your device.</p>
+      </footer>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

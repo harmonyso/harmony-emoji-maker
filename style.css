@@ -1,0 +1,287 @@
+:root {
+  --ground: #efeafb;
+  --ink: #1d1a39;
+  --soft-ink: #56517a;
+  --tray: #ffffff;
+  --check: #e2dbf5;
+  --violet: #5b3df5;
+  --violet-deep: #4329c9;
+  --sun: #ffc531;
+  --alarm: #b3261e;
+  --step: 6px;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", "Nunito", "Segoe UI", system-ui, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.45;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.page {
+  width: min(100% - 2.5rem, 40rem);
+  margin: 0 auto;
+  padding: clamp(1.5rem, 6vw, 4rem) 0 3rem;
+}
+
+/* Stepped corners: every box on the page is cut like a sprite, not rounded. */
+.primary,
+.ask input,
+.ideas button,
+.tile,
+.bar {
+  clip-path: polygon(
+    0 var(--step),
+    var(--step) var(--step),
+    var(--step) 0,
+    calc(100% - var(--step)) 0,
+    calc(100% - var(--step)) var(--step),
+    100% var(--step),
+    100% calc(100% - var(--step)),
+    calc(100% - var(--step)) calc(100% - var(--step)),
+    calc(100% - var(--step)) 100%,
+    var(--step) 100%,
+    var(--step) calc(100% - var(--step)),
+    0 calc(100% - var(--step))
+  );
+}
+
+.masthead h1 {
+  margin: 0;
+  font-size: clamp(2.25rem, 10.5vw, 4rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: 0.9rem 0 0;
+  max-width: 34ch;
+  color: var(--soft-ink);
+}
+
+.ask {
+  margin-top: 2rem;
+}
+
+.ask label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 700;
+}
+
+.ask-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.ask input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.85rem 1rem;
+  border: 0;
+  background: var(--tray);
+  color: var(--ink);
+  font: inherit;
+  /* clip-path hides outlines, so focus is drawn inside the box instead. */
+  box-shadow: inset 0 0 0 3px var(--ink);
+  outline: none;
+}
+
+.ask input::placeholder {
+  color: #8d88ad;
+}
+
+.ask input:focus-visible {
+  box-shadow: inset 0 0 0 4px var(--violet);
+}
+
+.primary {
+  flex: 0 0 auto;
+  padding: 0.85rem 1.25rem;
+  border: 0;
+  background: var(--violet);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  outline: none;
+}
+
+.primary:hover {
+  background: var(--violet-deep);
+}
+
+.primary:focus-visible {
+  box-shadow: inset 0 0 0 4px var(--sun);
+}
+
+.primary:disabled {
+  background: #a9a3c9;
+  cursor: not-allowed;
+}
+
+.ideas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+}
+
+.ideas button {
+  --step: 4px;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  background: var(--check);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.ideas button:hover {
+  background: #d3c9f0;
+}
+
+.ideas button:focus-visible {
+  box-shadow: inset 0 0 0 3px var(--violet);
+}
+
+.hint,
+.note {
+  margin: 0.8rem 0 0;
+  color: var(--soft-ink);
+  font-size: 0.9375rem;
+}
+
+.results {
+  margin-top: 2rem;
+}
+
+.bar {
+  --step: 4px;
+  height: 1.25rem;
+  background: var(--tray);
+  box-shadow: inset 0 0 0 3px var(--ink);
+  padding: 5px;
+}
+
+#bar-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  /* Filled in blocks, like the pixels it is about to paint. */
+  background: repeating-linear-gradient(90deg, var(--violet) 0 10px, transparent 10px 13px);
+}
+
+.status {
+  min-height: 1.5em;
+  margin: 0.8rem 0;
+  font-weight: 700;
+}
+
+.status[data-kind="error"] {
+  color: var(--alarm);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.9rem;
+}
+
+.tiles[data-count="1"] {
+  grid-template-columns: minmax(0, 14rem);
+}
+
+@media (min-width: 44rem) {
+  .tiles:not([data-count="1"]) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* The tile's background is its frame; the frame colour is the tile's state. */
+.tile {
+  display: block;
+  width: 100%;
+  padding: 6px;
+  border: 0;
+  background: var(--ink);
+  cursor: pointer;
+  outline: none;
+  transition: transform 120ms ease-out, opacity 120ms ease-out;
+}
+
+.tile:disabled {
+  cursor: default;
+}
+
+.tile:focus-visible {
+  background: var(--violet);
+}
+
+.tile[aria-pressed="true"] {
+  background: var(--sun);
+  transform: scale(1.04);
+}
+
+.tiles[data-picked="true"] .tile[aria-pressed="false"] {
+  opacity: 0.55;
+}
+
+.tile canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+  /* One checker square per sprite pixel, showing where the emoji is see-through. */
+  background: conic-gradient(var(--check) 25%, var(--tray) 0 50%, var(--check) 0 75%, var(--tray) 0) 0 0 / 12.5% 12.5%;
+}
+
+.actions {
+  margin-top: 1.4rem;
+}
+
+.actions .note {
+  margin-top: 0.5rem;
+}
+
+.credits {
+  margin-top: 3.5rem;
+  padding-top: 1.2rem;
+  border-top: 3px solid var(--check);
+  color: var(--soft-ink);
+  font-size: 0.875rem;
+}
+
+.credits p {
+  margin: 0 0 0.6rem;
+  max-width: 62ch;
+}
+
+.credits a {
+  color: var(--violet-deep);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile {
+    transition: none;
+  }
+}

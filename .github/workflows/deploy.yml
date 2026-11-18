@@ -1,0 +1,74 @@
+name: Test and publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # The model files are 115 MB and never change for a given upstream commit.
+      - name: Reuse the model files from an earlier run
+        uses: actions/cache@v4
+        with:
+          path: _upstream
+          key: upstream-${{ hashFiles('scripts/fetch-upstream.sh') }}
+
+      - name: Download the model and build the site
+        run: bash scripts/fetch-upstream.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install the test browser
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Test the page
+        run: node tests/ui.test.mjs
+
+      - name: Test the real model
+        run: node tests/model.test.mjs _site
+
+      - name: Keep the test pictures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-pictures
+          path: tests/out
+          if-no-files-found: ignore
+
+      - name: Package the site
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

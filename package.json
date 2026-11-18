@@ -1,0 +1,14 @@
+{
+  "name": "harmony-emoji-maker",
+  "private": true,
+  "type": "module",
+  "license": "CC-BY-NC-4.0",
+  "scripts": {
+    "fetch": "bash scripts/fetch-upstream.sh",
+    "test:ui": "node tests/ui.test.mjs",
+    "test:model": "node tests/model.test.mjs _site"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
