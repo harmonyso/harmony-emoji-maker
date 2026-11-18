@@ -421,9 +421,31 @@ body {
   border-top: 3px solid var(--check);
 }
 
+.motion-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
+}
+
 .motion-title {
-  margin: 0 0 0.6rem;
   font-weight: 700;
+}
+
+/* The motion comes from the prompt; this is for changing your mind. */
+#move-style {
+  padding: 0.3rem 0.5rem;
+  border: 3px solid var(--ink);
+  border-radius: 0;
+  background: var(--tray);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+}
+
+#move-style:focus-visible {
+  outline: 3px solid var(--violet);
+  outline-offset: 2px;
 }
 
 .moves {
@@ -433,30 +455,28 @@ body {
   margin-bottom: 1rem;
 }
 
-/* Same idea as the tiles: the frame colour shows which style is picked. */
+.moves[data-count="1"] {
+  grid-template-columns: minmax(0, 5.5rem);
+}
+
+/* Same idea as the tiles: the frame colour shows which emoji is picked. */
 .move {
   --step: 4px;
   display: block;
   width: 100%;
-  padding: 4px 4px 2px;
+  padding: 4px;
   border: 0;
   background: var(--check);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 700;
   cursor: pointer;
   outline: none;
 }
 
 .move:focus-visible {
   background: var(--violet);
-  color: #fff;
 }
 
 .move[aria-pressed="true"] {
   background: var(--ink);
-  color: #fff;
 }
 
 .move canvas {
@@ -465,11 +485,6 @@ body {
   aspect-ratio: 1;
   image-rendering: pixelated;
   background: var(--tray);
-}
-
-.move span {
-  display: block;
-  padding: 0.15rem 0;
 }
 
 .credits {

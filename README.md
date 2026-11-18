@@ -10,8 +10,9 @@ device: on the graphics card through WebGPU where the browser has it, otherwise 
 
 - Paints four options for a prompt; you pick one and download a 128 × 128 PNG or copy it.
 - Knows a few people by name (`people.js`): "Tal waving" is rewritten into a description the model can follow.
-- Makes the picked emoji move (`motion.js`): Walk, Bounce, Shake or Spin, downloaded as a looping GIF (`gif.js`).
-  The model only paints stills, so the motion is the finished picture moved pixel by pixel.
+- Makes the emoji move (`motion.js`), downloaded as a looping GIF (`gif.js`). The motion comes from the prompt:
+  "walking" walks, "running" runs, and so on for jump, dance, wave, float, shake and spin. The model only paints
+  stills, so the motion is the finished picture moved pixel by pixel; full-body figures also step with their legs.
 
 ## Credits and license
 

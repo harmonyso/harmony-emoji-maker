@@ -84,8 +84,11 @@
             <button id="again" class="quiet" type="button">Try again</button>
           </div>
           <div id="motion" class="motion" hidden>
-            <p class="motion-title">Make it move</p>
-            <div id="moves" class="moves" role="group" aria-label="Motion style"></div>
+            <div class="motion-head">
+              <label class="motion-title" for="move-style">Make it</label>
+              <select id="move-style"></select>
+            </div>
+            <div id="moves" class="moves" role="group" aria-label="Your options, moving"></div>
             <button id="download-gif" class="quiet" type="button">Download GIF</button>
           </div>
           <p class="note">Downloads have a see-through background: a 128 × 128 PNG, or a 120 × 120 GIF that moves.</p>

@@ -79,7 +79,7 @@ async function paint(prompt, seed, file) {
   assert.equal(g.readUInt16LE(6), 120);
   assert.equal(g.readUInt16LE(8), 120);
   assert.ok(g.length > 500 && g.length < 128 * 1024, `GIF is ${g.length} bytes`);
-  const moving = await page.locator('.move[aria-pressed="true"] span').innerText();
+  const moving = await page.inputValue("#move-style");
   await page.screenshot({ path: path.join(out, file.replace(".png", "-page.png")), fullPage: true });
   await context.close();
   const seconds = Math.round((Date.now() - started) / 1000);

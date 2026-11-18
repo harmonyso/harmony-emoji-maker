@@ -3,7 +3,7 @@
 
 import { loadEngine, crashedLastTime, GRID, N } from "./lib/client.js";
 import { expandPeople, describePeople, explain } from "./people.js";
-import { EFFECTS, FRAME, effectById, effectFor, framesOf } from "./motion.js";
+import { DEFAULT_EFFECT, EFFECTS, FRAME, effectById, effectFor, framesOf } from "./motion.js";
 import { encodeGif } from "./gif.js";
 
 const EXPORT_SIZE = 128; // Slack's recommended emoji size
@@ -35,6 +35,7 @@ const els = {
   again: $("again"),
   motion: $("motion"),
   moves: $("moves"),
+  moveStyle: $("move-style"),
   downloadGif: $("download-gif"),
   device: $("device"),
 };
@@ -66,48 +67,51 @@ els.tiles.dataset.count = String(COUNT);
 $("known").textContent = describePeople();
 els.make.textContent = `Make ${COUNT}`;
 
-// One small looping preview per motion style, each a button that picks that style.
+// Under the stills, the same four options again, moving. The motion comes from the prompt
+// ("Dudu walking" walks); the menu is for changing it.
 const stillLife = matchMedia("(prefers-reduced-motion: reduce)");
-const moves = EFFECTS.map((effect) => {
+for (const effect of EFFECTS) els.moveStyle.append(new Option(effect.label.toLowerCase(), effect.id));
+const moves = tiles.map((_tile, i) => {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "move";
-  button.dataset.effect = effect.id;
   button.setAttribute("aria-pressed", "false");
+  button.setAttribute("aria-label", `Option ${i + 1}, moving`);
   const canvas = document.createElement("canvas");
   canvas.width = FRAME;
   canvas.height = FRAME;
-  const label = document.createElement("span");
-  label.textContent = effect.label;
-  button.append(canvas, label);
-  button.addEventListener("click", () => pickMove(effect.id));
+  button.append(canvas);
+  button.addEventListener("click", () => pick(i));
   els.moves.append(button);
-  return { effect, button, ctx: canvas.getContext("2d"), frames: [], shown: -1 };
+  return { button, ctx: canvas.getContext("2d"), frames: [], shown: -1 };
 });
-let move = "bounce";
+els.moves.dataset.count = String(COUNT);
+let move = DEFAULT_EFFECT;
 let ticking = 0;
 
-function pickMove(id) {
+function setMove(id) {
   move = id;
-  moves.forEach((m) => m.button.setAttribute("aria-pressed", String(m.effect.id === id)));
+  els.moveStyle.value = id;
+  refreshMoves();
 }
 
-/** Remake every style's frames from the picked emoji. */
+/** Remake every option's frames in the current motion. */
 function refreshMoves() {
   if (!result) return;
-  const px = client.toRGBA(result.x, null, picked, MASKED);
-  for (const m of moves) {
-    m.frames = framesOf(m.effect, px);
+  const effect = effectById(move);
+  moves.forEach((m, b) => {
+    m.frames = framesOf(effect, client.toRGBA(result.x, null, b, MASKED));
     m.shown = -1;
-  }
+  });
   drawMoves(performance.now());
 }
 
 function drawMoves(now) {
+  const effect = effectById(move);
   for (const m of moves) {
     if (!m.frames.length) continue;
     // People who asked their device for less motion get a still frame; the GIF still moves.
-    const i = stillLife.matches ? Math.min(1, m.frames.length - 1) : Math.floor(now / m.effect.delayMs) % m.frames.length;
+    const i = stillLife.matches ? Math.min(1, m.frames.length - 1) : Math.floor(now / effect.delayMs) % m.frames.length;
     if (i === m.shown) continue;
     m.shown = i;
     m.ctx.putImageData(new ImageData(m.frames[i], FRAME, FRAME), 0, 0);
@@ -148,8 +152,8 @@ function mirror() {
 function pick(i) {
   picked = i;
   tiles.forEach((t, b) => t.button.setAttribute("aria-pressed", String(b === i)));
+  moves.forEach((m, b) => m.button.setAttribute("aria-pressed", String(b === i)));
   mirror();
-  refreshMoves();
 }
 
 function paint(x, masked) {
@@ -251,7 +255,7 @@ async function make() {
     });
     paint(x, null);
     result = { x, prompt, seed };
-    pickMove(effectFor(prompt));
+    setMove(effectFor(prompt));
     setStatus(COUNT > 1 ? "Painted. Tap another one to switch." : "Painted.");
   } catch (err) {
     console.error(err);
@@ -321,7 +325,7 @@ async function download() {
 }
 
 /**
- * The picked emoji, moving in the picked style, as a GIF that loops forever. Frames are 20 pixels
+ * The picked emoji, in the current motion, as a GIF that loops forever. Frames are 20 pixels
  * wide (the picture plus room to move), so at 6x the file is 120 x 120, inside Slack's 128 limit.
  */
 function downloadGif() {
@@ -361,6 +365,7 @@ els.download.addEventListener("click", download);
 els.copy.addEventListener("click", copy);
 els.again.addEventListener("click", again);
 els.downloadGif.addEventListener("click", downloadGif);
+els.moveStyle.addEventListener("change", () => setMove(els.moveStyle.value));
 stillLife.addEventListener("change", startMoves);
 document.querySelectorAll("[data-idea]").forEach((b) =>
   b.addEventListener("click", () => {
