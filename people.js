@@ -8,7 +8,10 @@
 // of a prompt, and at 16 x 16 pixels only hair, beard, glasses and clothing colour can show.
 // This file is public, like the rest of the site: only add people who are fine with that.
 
-export const PEOPLE = [{ name: "Haim", looks: "a bearded man with short dark hair and a gray scarf" }];
+export const PEOPLE = [
+  { name: "Haim", looks: "a bearded man with short dark hair and a gray scarf" },
+  { name: "Nir", looks: "a smiling man with brown hair, glasses and a blue shirt" },
+];
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

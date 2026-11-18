@@ -304,6 +304,9 @@ test("names match as whole words only, in any case, and odd names are safe", asy
       looks,
       words: looks.split(/\s+/).length,
       plain: expandPeople("Haim").text,
+      nir: expandPeople("nir dancing").text,
+      notNir: [expandPeople("nirvana").text, expandPeople("a souvenir").text],
+      everyone: PEOPLE.map((p) => ({ name: p.name, words: p.looks.split(/\s+/).length })),
       upper: expandPeople("HAIM dancing").text,
       twice: expandPeople("haim and Haim").text,
       inside: [expandPeople("Chaim running").text, expandPeople("haimish").text, expandPeople("haim2").text],
@@ -317,6 +320,10 @@ test("names match as whole words only, in any case, and odd names are safe", asy
   });
   assert.equal(r.plain, r.looks);
   assert.ok(r.words <= 12, `the description is short enough to leave room for the rest of the prompt (${r.words} words)`);
+  assert.equal(r.nir, "a smiling man with brown hair, glasses and a blue shirt dancing");
+  assert.deepEqual(r.notNir, ["nirvana", "a souvenir"]);
+  for (const p of r.everyone) assert.ok(p.words <= 12, `${p.name}: ${p.words} words`);
+  assert.equal(new Set(r.everyone.map((p) => p.name.toLowerCase())).size, r.everyone.length, "no name is listed twice");
   assert.equal(r.upper, `${r.looks} dancing`);
   assert.equal(r.twice, `${r.looks} and ${r.looks}`);
   assert.deepEqual(r.inside, ["Chaim running", "haimish", "haim2"], "no match inside another word");
